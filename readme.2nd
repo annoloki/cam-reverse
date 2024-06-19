@@ -1,0 +1,25 @@
+I've not used github or node.js or lua etc before,
+so my updates are in a single commit, but they include:
+
+Protocol Implementation:
+* Multiple image packets are Acked together in a single packet,
+  rather than needing multiple DrwAck packets.
+* When Unacked packets are re-sent, the old pkt_id is not deleted,
+  in case it comes in late. All pkt_id's are then removed from the
+  unackedDrw list when any of the related pkt_id's are acked.
+
+API support
+* Added support for panning for cameras that support it
+  (up/down/left/right, change speed, go to saved locations)
+
+Interface support
+* Demo cmds.sh bash script, accepts keyboard inputs to move camera,
+  also press I and L to turn on/off IR and white Light
+
+Code changes
+* Added OOPy interface for control commands
+  (added to DataView object for simplicity while experimenting)
+* Tidied to remove excess DataView object creation with .add()
+
+Dissector changes
+* Added code to help reverse pan commands
