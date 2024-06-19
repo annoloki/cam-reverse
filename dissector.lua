@@ -39,10 +39,36 @@ ilnk_proto.fields.encrypted 		= ProtoField.bool("iLnkP2P.encrypted", "Encrypted"
 ilnk_proto.fields.cmd_type 		= ProtoField.string("iLnkP2P.cmd_type", "Cmd Pkt Type")
 ilnk_proto.fields.cmd_name 		= ProtoField.string("iLnkP2P.cmd_name", "Cmd Pkt")
 ilnk_proto.fields.decrypted_data	= ProtoField.bytes("iLnkP2P.decrypted_data", "Decrypted data")
+ilnk_proto.fields.decrypted_data2	= ProtoField.bytes("iLnkP2P.decrypted_data2", "Decrypted data2")
+ilnk_proto.fields.cmd_sub  	= ProtoField.string("iLnkP2P.cmd_sub", "cmd_sub")
+ilnk_proto.fields.cmd_sub1	= ProtoField.string("iLnkP2P.cmd_sub1", "cmd_sub1")
+ilnk_proto.fields.cmd_sub1i	= ProtoField.uint32("iLnkP2P.cmd_sub1i", "cmd_sub1i")
+ilnk_proto.fields.cmd_sub2	= ProtoField.string("iLnkP2P.cmd_sub2", "cmd_sub2")
+ilnk_proto.fields.cmd_sub2i	= ProtoField.uint32("iLnkP2P.cmd_sub2i", "cmd_sub2i")
+ilnk_proto.fields.cmd_param	= ProtoField.uint32("iLnkP2P.cmd_param", "cmd_param")
+ilnk_proto.fields.cmd_params= ProtoField.string("iLnkP2P.cmd_params", "cmd_params")
 
 -- PunchPkt
 ilnk_proto.fields.serial	= ProtoField.string("iLnkP2P.serial", "Serial")
 
+subcmd_lut = {
+	[0x00000000] = "Pan_Up",
+	[0x00000001] = "Pan_Down",
+	[0x00000002] = "Pan_Right",
+	[0x00000003] = "Pan_Left",
+	[0x00000004] = "Pan_UpDown",
+	[0x00000005] = "Pan_LeftRight",
+	[0x00000006] = "Pan_0x6",
+	[0x00000007] = "Pan_0x7",
+	[0x00000008] = "Pan_0x8",
+	[0x00000009] = "Pan_0x9",
+	[0x0000000a] = "Pan_Center",
+	[0x0000000b] = "Pan_CK",
+	[0x0000000c] = "Pan_Stop",
+	[0x0000000d] = "Pan_0xD",
+	[0x0000000e] = "Pan_0xE",
+	[0x0000000f] = "Pan_SetSpeed"
+}
 lut = {
     [0xf1f0] = "Close",
     [0xf132] = "LanSearchExt",
@@ -390,25 +416,25 @@ function ilnk_proto.dissector(buffer, pinfo, tree)
 		local serial_suffix = buffer(16, 5):string()
 		subtree:add(ilnk_proto.fields.serial, buffer(4, len:uint()-3), serial_prefix..serial_no..serial_suffix)
 	end
-	if packetname == "DrwAck" then
+	if packetname == "xDrwAck" then
 		subtree:add(ilnk_proto.fields.len, buffer(2, 2))
 		subtree:add(ilnk_proto.fields.m_type, buffer(4, 1))
 		subtree:add(ilnk_proto.fields.m_stream_id, buffer(5, 1))
 		subtree:add(ilnk_proto.fields.elem_count, buffer(6, 2))
 
 	end
-	if packetname == "Drw" then
+	if packetname == "Drw" or packetname == "DrwAck" then
 		local b_pkt_len = buffer(2, 2)
 		local pkt_len = b_pkt_len:uint()
 		local is_data_packet = buffer(5, 1):uint() == 1
 		subtree:add(ilnk_proto.fields.len, b_pkt_len)
 		subtree:add(ilnk_proto.fields.m_type, buffer(4, 1))
 		subtree:add(ilnk_proto.fields.m_stream_id, buffer(5, 1))
+		subtree:add(ilnk_proto.fields.pkt_seq, buffer(6, 2))
 		if pkt_len < 12 then
 			subtree:add(ilnk_proto.fields.warning, "Short read"):set_generated()
 			return
 		end
-		subtree:add(ilnk_proto.fields.pkt_seq, buffer(6, 2))
 		local b_payload_len = buffer(0xc, 2)
 		local payload_len = buffer(0xc, 2):le_uint()
 		if payload_len > pkt_len then
@@ -459,6 +485,53 @@ function ilnk_proto.dissector(buffer, pinfo, tree)
 				local dec_tvb = ByteArray.tvb(dec_payload, "Decrypted payload")
 				subtree:add(ilnk_proto.fields.decrypted_data, dec_tvb:range(0, payload_len -4) ):set_generated()
 
+				if cmdname == "CMD_PASSTHROUGH_STRING_PUT" then
+					local subcmd
+					local sub1, sub2, sub3
+					local sub1i, sub2i, sub3i
+
+					if payload_len >= 12 then
+						subcmd = dec_tvb:range(0x10,8)
+						sub1 = dec_tvb:range(0x10,4)
+						sub2 = dec_tvb:range(0x14,4)
+						sub1i = sub1:uint()
+						sub2i = sub2:uint()
+					end
+					if payload_len >= 0x20 then
+						sub3 = dec_tvb:range(0x18,4)
+						sub3i = sub3:uint()
+						subtree:add(ilnk_proto.fields.cmd_sub1i, sub1, sub1i):set_generated()
+						subtree:add(ilnk_proto.fields.cmd_sub2i, sub2, sub2i):set_generated()
+
+						if sub1i == 0 then
+							local subname=subcmd_lut[sub2i] or "xxx";
+							subtree:add(ilnk_proto.fields.cmd_sub1, sub1, subname):set_generated()
+							pinfo.cols.info:set(subname)
+							if sub2i == 0xf then
+								if sub3i == 0x2 then subtree:add(ilnk_proto.fields.cmd_params, "Slow"):set_generated()
+								elseif sub3i == 0xa then subtree:add(ilnk_proto.fields.cmd_params, "Med"):set_generated()
+								elseif sub3i == 0x32 then subtree:add(ilnk_proto.fields.cmd_params, "Fast"):set_generated()
+								end
+							end
+						elseif sub1i == 1 and sub2i < 4 then
+							local txt
+							if sub2i == 0 then
+								txt="Store position n"
+							elseif sub2i == 1 then
+								txt="Restore position n"
+							elseif sub2i == 3 then
+								txt="Done storing positions"
+							else
+								txt="Unset?"
+							end
+							pinfo.cols.info:set(txt)
+							subtree:add(ilnk_proto.fields.cmd_sub, subcmd, txt):set_generated()
+						end
+						subtree:add(ilnk_proto.fields.cmd_param, sub3):set_generated()
+						local dec2_tvb = ByteArray.tvb(dec_payload, "Decrypted12")
+						subtree:add(ilnk_proto.fields.decrypted_data2, dec2_tvb:range(12, payload_len -16) ):set_generated()
+					end
+				end
 				local payload_tvb = ByteArray.tvb(buffer(0x14, payload_len -4):bytes(), "CMD Payload")
 				subtree:add(ilnk_proto.fields.cmd_payload, payload_tvb:range(0, payload_len -4))
 			end
@@ -510,7 +583,7 @@ end
 
 local function heuristic_checker(buffer, pinfo, tree)
 	length = buffer:len()
-    if length < 2 then return false end
+	if length < 2 then return false end
 	local packetname = lut[buffer(0, 2):uint()]
 	if packetname ~= nil then
 		ilnk_proto.dissector(buffer, pinfo, tree)

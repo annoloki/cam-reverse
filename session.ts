@@ -1,4 +1,5 @@
 import { createSocket, RemoteInfo } from "node:dgram";
+import { config } from "./settings.js";
 import EventEmitter from "node:events";
 
 import { Commands, CommandsByValue } from "./datatypes.js";
@@ -12,13 +13,14 @@ import {
   notImpl,
   noop,
 } from "./handlers.js";
-import { create_P2pAlive, DevSerial, SendStartVideo, SendVideoResolution, SendWifiDetails } from "./impl.js";
+import { create_P2pAlive, DevSerial, makeCommand, SendVideoResolution, SendWifiDetails } from "./impl.js";
 import { logger } from "./logger.js";
 
 export type Session = {
   send: (msg: DataView) => void;
   ackDrw: (id: number) => void;
   unackedDrw: { [id: number]: { sent_ts: number; data: DataView } };
+	needAck: {};
   outgoingCommandId: number;
   ticket: number[];
   eventEmitter: EventEmitter;
@@ -47,8 +49,9 @@ type msgCb = (
 const handleIncoming: msgCb = (session, handlers, msg, rinfo) => {
   const ab = new Uint8Array(msg).buffer;
   const dv = new DataView(ab);
-  const raw = dv.readU16();
+  const raw = dv.getUint16(0);
   const cmd = CommandsByValue[raw];
+	// session.lastReceivedPacket = Date.now();
   logger.log("trace", `<< ${cmd}`);
   handlers[cmd](session, dv, rinfo);
   if (raw != Commands.P2PAlive && raw != Commands.P2PAliveAck) {
@@ -63,7 +66,6 @@ export const makeSession = (
   onLogin: (s: Session) => void,
   timeoutMs: number,
 ): Session => {
-  let unackedDrw = {};
   const sock = createSocket("udp4");
 
   sock.on("error", (err) => {
@@ -87,8 +89,9 @@ export const makeSession = (
         let buf = create_P2pAlive();
         session.send(buf);
       }
+			// if(timeoutMs < 7000) timeoutMs=7000;
       if (delta > timeoutMs) {
-        logger.warning(`Camera ${session.devName} timed out`);
+        logger.warning(`Camera ${session.devName} timed out (${delta})`);
         session.eventEmitter.emit("disconnect");
       }
     }
@@ -98,12 +101,15 @@ export const makeSession = (
     const now = Date.now();
     for (const [key, value] of Object.entries(session.unackedDrw)) {
       const { sent_ts, data } = value;
-      if (now - sent_ts > 100) {
-        const pkt_id = data.add(6).readU16();
-        logger.debug(`Resending packet ${pkt_id} as ${session.outgoingCommandId}`);
-        data.add(6).writeU16(session.outgoingCommandId);
-        session.outgoingCommandId++;
-        delete session.unackedDrw[key];
+      if (sent_ts>0 && now - sent_ts > 200) {
+        const pkt_id = data.seq();
+				let new_id=pkt_id;
+				value.sent_ts=0;
+				if(session.outgoingCommandId > pkt_id + 1) {
+					new_id=session.outgoingCommandId++;
+					data.seq(new_id);
+				}
+        logger.debug(`Resending packet ${pkt_id} as ${new_id}`);
         session.send(data);
       }
     }
@@ -111,7 +117,7 @@ export const makeSession = (
 
   const session: Session = {
     outgoingCommandId: 0,
-    ticket: [0, 0, 0, 0],
+    ticket: [ 0, 0, 0, 0 ],
     lastReceivedPacket: 0,
     eventEmitter: new EventEmitter(),
     connected: true,
@@ -119,11 +125,12 @@ export const makeSession = (
     devName: dev.devId,
     started: false,
     send: (msg: DataView) => {
-      const raw = msg.readU16();
+			let unackedDrw=session.unackedDrw;
+      const raw = msg.getUint16(0);
       const cmd = CommandsByValue[raw];
       // send command
-      if (raw == 0xf1d0 && msg.add(4).readU8() == 0xd1) {
-        const packet_id = msg.add(6).readU16();
+      if (raw == 0xf1d0 && msg.getUint8(4) == 0xd1) {
+        const packet_id = msg.seq();
         logger.debug(`Sending Drw Packet with id ${packet_id}`);
         unackedDrw[packet_id] = { sent_ts: Date.now(), data: msg };
       }
@@ -131,19 +138,47 @@ export const makeSession = (
       sock.send(new Uint8Array(msg.buffer), ra.port, session.dst_ip);
     },
     ackDrw: (id: number) => {
-      logger.debug(`Removing ${id} from pending`);
-      delete unackedDrw[id];
+			let unackedDrw=session.unackedDrw;
+      if(unackedDrw[id]) unackedDrw[id].data.Ack(id);
     },
     dst_ip: ra.address,
     curImage: [],
+		startFrame:0,
     rcvSeqId: 0,
     frame_is_bad: false,
     frame_was_fixed: false,
-    unackedDrw,
+    unackedDrw: {},
+    needAck: {},
+		dataAck: (id) => {
+			session.needAck[id]=id;
+		},
+		sendAcks: () => {
+			let needAck=Object.keys(session.needAck);
+			let nl=needAck.length;
+			if(!nl) return;
+			let len = nl * 2 + 4;
+			let outbuf = new DataView(new Uint8Array(len+4).buffer);
+			outbuf.setUint16(0,Commands.DrwAck);
+			outbuf.setUint16(2,len);
+			outbuf.setUint8(4,0xd2);
+			outbuf.setUint8(5,1); // data
+			outbuf.setUint16(6,nl);
+			let i=8, al=[];
+			for(k in needAck) {
+				let v=needAck[k];
+				outbuf.setUint16(i,v);
+				i+=2;
+				delete session.needAck[v];
+			}
+			// logger.debug(`Acking ${nl} IDs `);
+			session.send(outbuf);
+		},
     close: () => {
       session.eventEmitter.emit("disconnect");
     },
   };
+
+	const ackTimer = setInterval( session.sendAcks ,100);
 
   session.eventEmitter.on("disconnect", () => {
     logger.info(`Disconnected from camera ${session.devName} at ${session.dst_ip}`);
@@ -151,6 +186,8 @@ export const makeSession = (
     session.connected = false;
     session.timers.forEach((x) => clearInterval(x));
     session.timers = [];
+    session.needAck = [];
+    session.unackedDrw = {};
     sock.close();
   });
 
@@ -168,10 +205,11 @@ export const configureWifi = (ssid: string, password: string, channel: number) =
 };
 
 export const startVideoStream = (s: Session) => {
-  [
-    ...SendVideoResolution(s, 2), // 640x480
-    SendStartVideo(s),
-  ].forEach(s.send);
+	makeCommand.startVideo(s).send();
+  // [
+    // ...SendVideoResolution(s, 2), // 640x480
+  // ].forEach(s.send);
+	
 };
 
 export const Handlers: Record<keyof typeof Commands, PacketHandler> = {

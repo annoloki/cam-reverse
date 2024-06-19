@@ -36,8 +36,8 @@ export const ControlCommands = {
   // TODO: flip these..
   ConnectUser: 0x2010,
   ConnectUserAck: 0x2011,
-  // CloseSession: 0x3110,
-  // CloseSessionAck: 0x3111,
+  CloseSession: 0x3110,
+  CloseSessionAck: 0x3111,
   DevStatus: 0x0810, // CMD_SYSTEM_STATUS_GET
   DevStatusAck: 0x0811,
   WifiSettingsSet: 0x0160, // CMD_NET_WIFISETTING_SET
@@ -48,12 +48,16 @@ export const ControlCommands = {
   StartVideo: 0x1030, // CMD_PEER_LIVEVIDEO_START
   StartVideoAck: 0x1031,
   StopVideo: 0x1130, // CMD_PEER_LIVEVIDEO_STOP
+  StopVideoAck: 0x1131, // CMD_PEER_LIVEVIDEO_STOP_ACK
   Shutdown: 0x1010, //CMD_SYSTEM_SHUTDOWN,
   Reboot: 0x1110, //CMD_SYSTEM_REBOOT,
   VideoParamSet: 0x1830, // CMD_PEER_VIDEOPARAM_SET
   VideoParamSetAck: 0x1831,
   VideoParamGet: 0x1930, // CMD_PEER_VIDEOPARAM_GET
   IRToggle: 0x0a30, // CMD_PEER_IRCUT_ONOFF
+  LightToggle: 0x0b30, // CMD_PEER_LIGHT_ONOFF
+	SubCmd: 0xff50, // CMD_PASSTHROUGH_STRING_PUT
+	SubCmdAck: 0xff51, // CMD_PASSTHROUGH_STRING_PUT_ACK
 };
 
 export const ccDest: Record<number, number> = {
