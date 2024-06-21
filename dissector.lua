@@ -416,7 +416,7 @@ function ilnk_proto.dissector(buffer, pinfo, tree)
 		local serial_suffix = buffer(16, 5):string()
 		subtree:add(ilnk_proto.fields.serial, buffer(4, len:uint()-3), serial_prefix..serial_no..serial_suffix)
 	end
-	if packetname == "xDrwAck" then
+	if packetname == "DrwAck" then
 		subtree:add(ilnk_proto.fields.len, buffer(2, 2))
 		subtree:add(ilnk_proto.fields.m_type, buffer(4, 1))
 		subtree:add(ilnk_proto.fields.m_stream_id, buffer(5, 1))
@@ -484,6 +484,19 @@ function ilnk_proto.dissector(buffer, pinfo, tree)
 				end
 				local dec_tvb = ByteArray.tvb(dec_payload, "Decrypted payload")
 				subtree:add(ilnk_proto.fields.decrypted_data, dec_tvb:range(0, payload_len -4) ):set_generated()
+
+				if cmdname == "CMD_PEER_VIDEOPARAM_SET" then
+						local sub1i=dec_payload:get_index(0)
+						local sub2i=dec_payload:get_index(4)
+						local txt;
+						if sub1i == 1 then
+								txt="SetRes:"..sub2i
+						elseif sub1i == 7 then
+								txt="SetQty:"..sub2i
+						end
+						pinfo.cols.info:set(txt)
+
+				end
 
 				if cmdname == "CMD_PASSTHROUGH_STRING_PUT" then
 					local subcmd
