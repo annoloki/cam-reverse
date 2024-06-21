@@ -1,5 +1,6 @@
 import { RemoteInfo } from "dgram";
 import http from "node:http";
+import fs from "node:fs";
 
 import { logger } from "./logger.js";
 import { config } from "./settings.js";
@@ -11,7 +12,7 @@ import { addExifToJpeg, createExifOrientation } from "./exif.js";
 // @ts-expect-error TS2307
 import favicon from "./cam.ico.gz";
 // @ts-expect-error TS2307
-import html_template from "./asd.html";
+// import html_template from "./asd.html";
 
 const BOUNDARY = "a very good boundary line";
 const responses: Record<string, http.ServerResponse[]> = {};
@@ -74,8 +75,8 @@ export const serveHttp = (port: number) => {
           res.end("Nothing online");
           return;
         }
-        const ui = html_template
-          .toString()
+				const page = fs.readFileSync("asd.html", { encoding: "utf-8" });
+        const ui = page
           .replace(/\${id}/g, devId)
           .replace(/\${name}/g, cameraName(devId))
           .replace(/\${audio}/g, config.cameras[devId].audio ? "true" : "false");
@@ -130,6 +131,19 @@ export const serveHttp = (port: number) => {
       else if(cmd=="pancmd") {
         logger.info(`PanCmd ${n1}/${n2}/${n3} on ${devId}`);
         makeCommand.pan(s,n1,n2,n3).send();
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+       else if(cmd=="rescmd") {
+				if(n1 != "") {
+          logger.info(`rescmd ${n1} on ${devId}`);
+          makeCommand.setRes(s,n1).send();
+				}
+        if(n2) {
+					logger.info(`rescmd qlty ${n2} on ${devId}`);
+					makeCommand.setQlty(s,n2).send();
+				}
         res.writeHead(204);
         res.end();
         return;

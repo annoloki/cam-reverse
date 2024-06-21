@@ -2,12 +2,108 @@
 	<head>
 	<link rel="shortcut icon" href="/favicon.ico">
 	<title>${name}</title>
+	<style>
+		.b1 {
+			font-size: 24pt;
+			width: 48px;
+			height: 48px;
+			background-color: pink;
+		}
+		.b2 {
+			font-size: 10pt;
+			width: 48px;
+			height: 38px;
+			background-color: pink;
+		}
+		.b3 {
+			font-size: 10pt;
+			width: 48px;
+			height: 38px;
+			background-color: #8888ff;
+		}
+		.b4 {
+			font-size: 10pt;
+			width: 48px;
+			height: 38px;
+			background-color: #88ddff;
+		}
+		.btn {
+			position: relative;
+			padding: 1px;
+			border: 0;
+			border-radius: 3px;
+			box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.5);
+			cursor: pointer;
+		}
+		.btn:active,
+		.active {
+			top: 2px;
+			left: 1px;
+			box-shadow: none;
+		}
+	</style>
 	</head><body>
-	<h2>${name}</h2><a href="/${id}/camera"><img style="height: 640px" src="/${id}/camera"/></a><hr/>
-	<button onclick="toggle_audio()" id=audio disabled=true>Audio: disabled</button>
-	<button onclick="fetch('/${id}/rotate')">Rotate</button>
-	<button onclick="fetch('/${id}/mirror')">Mirror</button>
+	<h2>${name}</h2>
+	<table border=0><tr><td valign=top><a href="camera"><img id=img style="width:800px" src="camera"/></a></td>
+	<td valign=top>
+		<table border=0>
+			<tr> <td><button id=speed_2 class="btn b2"> vFast </button>
+				<td><button id=speed_5 class="btn b2"> Fast </button>
+				<td><button id=speed_10 class="btn b2"> Med </button>
+				<td><button id=speed_20 class="btn b2"> Slow </button>
+				<td><button id=speed_50 class="btn b2"> vSlow </button>
+				<td width=48>
+				<td><button onclick="fetch('ir')" class="btn b3"> IR </button>
+				<td><button onclick="fetch('light')" class="btn b3"> Light </button>
+			</tr>
+			<tr><td><td> <td align=center> <button id=pan0_0 class="btn b1">&uparrow;</button> <td>
+				<td><td><td colspan=2 valign=bottom> Quality:
+			<tr><td><td> <button id=pan0_2 class="btn b1">&leftarrow;</button>
+					<td alt=Stop> <button id=pan0_12 class="btn b1">&square;</button>
+					<td> <button id=pan0_3 class="btn b1">&rightarrow;</button>
+				<td><td align=right> Vid:
+				<td><button onclick="fetch('rescmd/0')" class="btn b4"> Low </button>
+				<td><button onclick="fetch('rescmd/2')" class="btn b4"> Hi </button>
+			<tr><td><td> <td align=center> <button id=pan0_1 class="btn b1">&downarrow;</button> <td>
+				<td><td align=right> Aud:
+				<td><button onclick="fetch('rescmd//32')" class="btn b4"> Low </button>
+				<td><button onclick="fetch('rescmd//80')" class="btn b4"> Hi </button>
+			</table>
+		<hr/>
+		<button onclick="toggle_audio()" id=audio disabled=true>Audio: disabled</button>
+		<button onclick="fetch('rotate')">Rotate</button>
+		<button onclick="fetch('mirror')">Mirror</button>
+	</td></tr></table>
 	<script>
+	const gid=(id)=>document.getElementById(id);
+	{ // Pan direction
+		let obtn;
+		for(let i=0;i<16;i++) {
+			let btn=gid(`pan0_${i}`);
+			if(!btn) continue;
+			btn.onclick=()=>{
+				if(obtn) obtn.classList.remove('active');
+				obtn=btn;
+				if(i!=12) btn.classList.toggle('active');
+				fetch(`pancmd/0/${i}/0`);
+			};
+		}
+	}
+	{ // Pan speed
+		let obtn;
+		for(let i=0;i<60;i++) {
+			let btn=gid(`speed_${i}`);
+			if(!btn) continue;
+			btn.onclick=()=>{
+				if(obtn) obtn.classList.remove('active');
+				obtn=btn;
+				if(i!=12) btn.classList.toggle('active');
+				fetch(`pancmd/0/15/${i}`);
+			};
+		}
+
+	}
+	{ // Audio
 	const alaw_to_s16_table = [
 	  -5504, -5248, -6016, -5760, -4480, -4224, -4992, -4736, -7552, -7296, -8064, -7808, -6528, -6272, -7040, -6784, -2752,
 	  -2624, -3008, -2880, -2240, -2112, -2496, -2368, -3776, -3648, -4032, -3904, -3264, -3136, -3520, -3392, -22016,
@@ -98,6 +194,7 @@
 			return;
 		}
 		console.log("Unknown audio stream status");
+	}
 	}
 	</script>
 </html>

@@ -13,7 +13,7 @@ const str2byte = (s: string): number[] => {
 
 { // Dataview for packet
 	DataView.prototype.note=function(note) {
-		this._caller=note;return this;
+		this._note=note;return this;
 	};
 	DataView.prototype._init = function(session) { // 0, 4, 5, 8
 		const CHANNEL = 0;
@@ -28,10 +28,15 @@ const str2byte = (s: string): number[] => {
 		return this;
 	};
 	DataView.prototype.dump = function() {
-		logger.info("\nPacket ID: "+this.seq()+"\n"+hexdump(this)+"\nData:\n"+hexdump(this.getDV()));
+		let str=[ '', "Packet ID: "+this.seq(),
+			'Packet _note:'+(this._note?this._note:'none'),
+			hexdump(this), 'Payload:',hexdump(this.getDV())
+		];
+		logger.info(str.join('\n'));
+		return this;
 	};
 	DataView.prototype.getDV = function() {
-		if(!this._data) {
+		if(!this._data && !this._note) {
 			if(this.len()>20) {
 				let ud=new DataView(this.buffer,8,this.byteLength-8);
 				XqBytesDec(ud,this.byteLength-8,4);
@@ -61,7 +66,7 @@ const str2byte = (s: string): number[] => {
 		return this;
 	};
 	DataView.prototype.Ack = function(id) {
-		let c=this._caller;
+		let c=this._note;
 		for(var num in this._seqs) {
 			logger.debug(`Removing ${num}(${c}) from pending (Ack ${id})`);
 			delete this._session.unackedDrw[num]
@@ -89,7 +94,7 @@ const str2byte = (s: string): number[] => {
 	}
 	DataView.prototype.setDataByte=function(i:number,val:number) { // 20+num
 		const OFFSET=20, rotate=4, buflen=this._data.length;
-		this._data[i]=val;
+		this._data[i]=val=parseInt(val);
 		val += ((val & 1) ? -1 : 1);
 		this.setUint8( OFFSET + i-rotate + (i<rotate ? buflen : 0) , val );
 		return this;
@@ -138,17 +143,17 @@ export function makeDrw (session: Session, command: number, data): DataView {
 
 	let pkt_len = DRW_HEADER_LEN + TOKEN_LEN + datalen;
   const ret = new DataView(new Uint8Array(pkt_len).buffer);
-	ret._caller=makeDrw.caller;
+	ret._note=makeDrw.caller;
 	ret._init(session);
 	ret.len( pkt_len );
 	ret.paylen( TOKEN_LEN + datalen );
 	
-	if(Number.isInteger(data)) {
-		for(let i=0;i<data;i++) ret._data[i]=1;
+	if (!data && command == ControlCommands.SubCmd) {
+		ret._data=[ 24,0,0,0,1,10,80,73,0,16,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ];
 		ret.scramble();
 	}
-	else if (!data && command == ControlCommands.SubCmd) {
-		ret._data=[ 24,0,0,0,1,10,80,73,0,16,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ];
+	else if(Number.isInteger(data)) {
+		for(let i=0;i<data;i++) ret._data[i]=0;
 		ret.scramble();
 	}
   else if (data && datalen > 4) {
@@ -176,13 +181,15 @@ export const sendCommand = (session: Session, command: number, data: DataView | 
 };
 
 export const makeCommand = {
-	pan: (session: Session,n1:number,n2:number,n3:number) => makeDrw(session, ControlCommands.SubCmd).setDataQ(n1,n2,n3).note("makeCommand.pan()"),
-	panToN: (session: Session, pos:number) => makeCommand.pan(session,1,1,pos).note("makeCommand.pan()"),
-	toggleLight: (session: Session) => makeDrw(session, ControlCommands.LightToggle).note("makeCommand.toggleLight()"),
-	toggleIR: (session: Session) => makeDrw(session, ControlCommands.IRToggle).note("makeCommand.toggleIR()"),
-	startVideo: (session: Session) => makeDrw(session, ControlCommands.StartVideo).note("makeCommand.startVideo()"),
-	stopVideo: (session: Session) => makeDrw(session, ControlCommands.StopVideo).note("makeCommand.stopVideo()"),
-	reboot: (session: Session) => makeDrw(session, ControlCommands.Reboot).note("makeCommand.reboot()"),
+	pan: (session: Session,n1:number,n2:number,n3:number) => makeDrw(session, ControlCommands.SubCmd).setDataQ(n1,n2,n3).note(".pan()"),
+	panToN: (session: Session, pos:number) => makeCommand.pan(session,1,1,pos).note(".panToN()"),
+	toggleLight: (session: Session) => makeDrw(session, ControlCommands.LightToggle).note(".toggleLight()"),
+	toggleIR: (session: Session) => makeDrw(session, ControlCommands.IRToggle).note(".toggleIR()"),
+	setRes: (session: Session, q:number) => makeDrw(session, ControlCommands.VideoParamSet, 8).setDataByte(0,1).setDataByte(4,q).note(".setRes"),
+	setQlty:(session: Session, q:number) => makeDrw(session, ControlCommands.VideoParamSet, 8).setDataByte(0,7).setDataByte(4,q).note(".setQlty"),
+	startVideo: (session: Session) => makeDrw(session, ControlCommands.StartVideo).note(".startVideo()"),
+	stopVideo: (session: Session) => makeDrw(session, ControlCommands.StopVideo).note(".stopVideo()"),
+	reboot: (session: Session) => makeDrw(session, ControlCommands.Reboot).note(".reboot()"),
 };
 
 const makeDataReadWriteOrig = (session: Session, command: number, data: DataView | null): DataView => {
@@ -236,6 +243,7 @@ const makeDataReadWriteChk = (session: Session, command: number, data: DataView 
 	return v2;
 };
 
+// const makeDataReadWrite = makeDataReadWriteChk;  // for testing
 const makeDataReadWrite = makeDrw;
 
 export const SendDevStatus = (session: Session): DataView => {
