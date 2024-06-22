@@ -27,6 +27,12 @@
 			height: 38px;
 			background-color: #88ddff;
 		}
+		.b5 {
+			font-size: 10pt;
+			width: 32px;
+			height: 32px;
+			background-color: #ffbbbb;
+		}
 		.btn {
 			position: relative;
 			padding: 1px;
@@ -44,7 +50,7 @@
 	</style>
 	</head><body>
 	<h2>${name}</h2>
-	<table border=0><tr><td valign=top><a href="camera"><img id=img style="width:800px" src="camera"/></a></td>
+	<table border=0><tr><td valign=top><a href="camera"><img id=img style="width:700px" src="camera"/></a></td>
 	<td valign=top>
 		<table border=0>
 			<tr> <td><button id=speed_2 class="btn b2"> vFast </button>
@@ -52,7 +58,7 @@
 				<td><button id=speed_10 class="btn b2"> Med </button>
 				<td><button id=speed_20 class="btn b2"> Slow </button>
 				<td><button id=speed_50 class="btn b2"> vSlow </button>
-				<td width=48>
+				<td>
 				<td><button onclick="fetch('ir')" class="btn b3"> IR </button>
 				<td><button onclick="fetch('light')" class="btn b3"> Light </button>
 			</tr>
@@ -68,6 +74,16 @@
 				<td><td align=right> Aud:
 				<td><button onclick="fetch('rescmd//32')" class="btn b4"> Low </button>
 				<td><button onclick="fetch('rescmd//80')" class="btn b4"> Hi </button>
+			</table>
+			<br>
+			<table border=0><tr><td><td colspan=6> Go to stored position:
+			<tr><td width=8>
+				<td> <button onclick="fetch('pancmd/1/1/1')" class="btn b5"> 1 </button>
+				<td> <button onclick="fetch('pancmd/1/1/2')" class="btn b5"> 2 </button>
+				<td> <button onclick="fetch('pancmd/1/1/3')" class="btn b5"> 3 </button>
+				<td> <button onclick="fetch('pancmd/1/1/4')" class="btn b5"> 4 </button>
+				<td> <button onclick="fetch('pancmd/1/1/5')" class="btn b5"> 5 </button>
+				<td> <button onclick="fetch('pancmd/1/1/6')" class="btn b5"> 6 </button>
 			</table>
 		<hr/>
 		<button onclick="toggle_audio()" id=audio disabled=true>Audio: disabled</button>
