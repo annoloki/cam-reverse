@@ -5,7 +5,7 @@ import fs from "node:fs";
 import { logger } from "./logger.js";
 import { config } from "./settings.js";
 import { discoverDevices } from "./discovery.js";
-import { DevSerial, makeCommand } from "./impl.js";
+import { DevSerial, makeCommand, makeDrw } from "./impl.js";
 import { Handlers, makeSession, Session, startVideoStream } from "./session.js";
 import { addExifToJpeg, createExifOrientation } from "./exif.js";
 
@@ -15,6 +15,7 @@ import favicon from "./cam.ico.gz";
 // import html_template from "./asd.html";
 
 const BOUNDARY = "a very good boundary line";
+const header = Buffer.from(`--${BOUNDARY}\r\nContent-Type: image/jpeg\r\n\r\n`);
 const responses: Record<string, http.ServerResponse[]> = {};
 const audioResponses: Record<string, http.ServerResponse[]> = {};
 const sessions: Record<string, Session> = {};
@@ -135,15 +136,15 @@ export const serveHttp = (port: number) => {
         res.end();
         return;
       }
-       else if(cmd=="rescmd") {
-				if(n1 != "") {
+      else if(cmd=="rescmd") {
+        if(n1 != "") {
           logger.info(`rescmd ${n1} on ${devId}`);
           makeCommand.setRes(s,n1).send();
-				}
+        }
         if(n2) {
-					logger.info(`rescmd qlty ${n2} on ${devId}`);
-					makeCommand.setQlty(s,n2).send();
-				}
+          logger.info(`rescmd qlty ${n2} on ${devId}`);
+          makeCommand.setQlty(s,n2).send();
+        }
         res.writeHead(204);
         res.end();
         return;
@@ -178,6 +179,8 @@ export const serveHttp = (port: number) => {
         }
 
         res.setHeader("Content-Type", `multipart/x-mixed-replace; boundary="${BOUNDARY}"`);
+        res.write(header);
+
         responses[devId].push(res);
         res.on("close", () => {
           responses[devId] = responses[devId].filter((r) => r !== res);
@@ -224,8 +227,10 @@ export const serveHttp = (port: number) => {
         const jpegHeader = addExifToJpeg(s.curImage[0], exifSegment);
         const assembled = Buffer.concat([jpegHeader, ...s.curImage.slice(1)]);
         responses[dev.devId].forEach((res) => {
-          res.write(header);
+          res.cork();
           res.write(assembled);
+          res.write(header);
+          res.uncork();
         });
       });
 

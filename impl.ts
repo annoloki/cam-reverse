@@ -28,11 +28,11 @@ const str2byte = (s: string): number[] => {
 		return this;
 	};
 	DataView.prototype.dump = function() {
-		let str=[ '', "Packet ID: "+this.seq(),
-			'Packet _note:'+(this._note?this._note:'none'),
-			hexdump(this), 'Payload:',hexdump(this.getDV())
+		let str=[ "\nPacket ID: ",this.seq(),'\n',
+			(this._note?'Packet _note:'+this._note+'\n':''),
+			hexdump(this), '\nPayload:',hexdump(this.getDV())
 		];
-		logger.info(str.join('\n'));
+		logger.info(str.join(''));
 		return this;
 	};
 	DataView.prototype.getDV = function() {
@@ -143,7 +143,8 @@ export function makeDrw (session: Session, command: number, data): DataView {
 
 	let pkt_len = DRW_HEADER_LEN + TOKEN_LEN + datalen;
   const ret = new DataView(new Uint8Array(pkt_len).buffer);
-	ret._note=makeDrw.caller;
+	let cstr=makeDrw.caller.toString();
+	if(cstr.length<20) ret._note=cstr;
 	ret._init(session);
 	ret.len( pkt_len );
 	ret.paylen( TOKEN_LEN + datalen );

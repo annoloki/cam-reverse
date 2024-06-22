@@ -1,5 +1,7 @@
+let lorient,lostr;
 // Create a minimal EXIF segment with orientation
 export const createExifOrientation = (orientation: number) => {
+  if(orientation==lorient) return lostr;
   const tiffHeader = Buffer.from("49492A0008000000", "hex");
   const ifdEntry = Buffer.concat([
     Buffer.from("0100", "hex"), // Number of IFD entries
@@ -13,12 +15,14 @@ export const createExifOrientation = (orientation: number) => {
   const segmentLength = Buffer.from([(exifData.length + 2) >> 8, (exifData.length + 2) & 0xff]);
   const exifHeader = Buffer.concat([Buffer.from("FFE1", "hex"), segmentLength]);
 
-  return Buffer.concat([exifHeader, exifData]);
+  lorient=orientation;
+  return lostr=Buffer.concat([exifHeader, exifData]);
 };
 
 export const addExifToJpeg = (jpegData: Buffer, exifSegment: Buffer) => {
   // Check for existing EXIF (simplified check)
-  if (jpegData.includes(Buffer.from("FFE1", "hex"))) {
+
+  if (jpegData.readUInt16BE(2) == 0xFFE1) {
     throw new Error("JPEG already contains EXIF segment");
   }
 

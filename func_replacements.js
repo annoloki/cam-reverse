@@ -14,18 +14,18 @@ export const XqBytesDec = (inoutbuf, buflen, rotate) => {
   new_buf.fill(0x1);
 
   for (let i = 0; i < buflen; i++) {
-    let b = inoutbuf.add(i).readU8();
+    let b = inoutbuf.getUint8(i);
     if ((b & 1) != 0) {
       new_buf[i] = b - 1;
     } else {
       new_buf[i] = b + 1;
     }
   }
-  for (let i = rotate; i < buflen; i++) {
-    inoutbuf.add(i).writeU8(new_buf[i - rotate]);
+  for (var i = 0; i < rotate; i++) {
+    inoutbuf.setUint8(i,new_buf[buflen - rotate + i]);
   }
-  for (let i = 0; i < rotate; i++) {
-    inoutbuf.add(i).writeU8(new_buf[buflen - rotate + i]);
+  for (; i < buflen; i++) {
+    inoutbuf.setUint8(i,new_buf[i - rotate]);
   }
 };
 

@@ -139,6 +139,7 @@ export const createResponseForControlCommand = (session: Session, dv: DataView):
       return [];
     default:
       logger.info(`Unhandled control command: 0x${cmd_id.toString(16)}`);
+      dv.dump();
   }
   return [];
 };
