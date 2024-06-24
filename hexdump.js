@@ -13,7 +13,7 @@ export const hexdump = (target, options) => {
   if (target instanceof DataView) {
     target = target.buffer;
   }
-  if (target instanceof ArrayBuffer) {
+  if (target instanceof ArrayBuffer || target instanceof Buffer) {
     if (length === undefined) length = target.byteLength;
     else length = Math.min(length, target.byteLength);
     buffer = target;
