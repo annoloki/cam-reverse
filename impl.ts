@@ -49,6 +49,7 @@ const str2byte = (s: string): number[] => {
 		for(var i=0;i<buflen;i++) new_buf[i]=this._data[i];
 		return new DataView(new_buf.buffer);
 	}
+
 	DataView.prototype.len = function(num) { // 2
 		if(!arguments.length) return 4+this.getUint16(2);
 		this.setUint16(2,num-4);
@@ -106,6 +107,7 @@ const str2byte = (s: string): number[] => {
 		this.scramble();
 		return this;
 	}
+
 	DataView.prototype.scramble = function() { // 20...
 		const OFFSET=20, rotate=4;
 		const data=this._data;
@@ -115,6 +117,19 @@ const str2byte = (s: string): number[] => {
 			v += ((v & 1) ? -1 : 1);
 			this.setUint8( OFFSET + i-rotate + (i<rotate ? buflen : 0) , v );
 		}
+		return this;
+	}
+	DataView.prototype.unscramble = function() { // 20...
+		const OFFSET=20, rotate=4;
+		const buflen=this.byteLength-OFFSET;
+		let data=[];
+		for (let i = 0; i < buflen; i++) {
+			let b:number = this.getUint8(i);
+			b += ( b&1 ? -1 : 1 );
+			i<rotate
+			data[ i - rotate + (i<rotate?buflen:0) ]=b;
+		}
+		this._data=data;
 		return this;
 	}
 	DataView.prototype.equals = function(dv) {
@@ -132,7 +147,7 @@ const str2byte = (s: string): number[] => {
 }
 
 // 'data' can be a DataView, Array, or number of bytes to allocate 
-export function makeDrw (session: Session, command: number, data): DataView {
+export function makeDrw (session: Session, command: number, data:DataView|number|Array): DataView {
   const DRW_HEADER_LEN = 0x10;
   const TOKEN_LEN = 0x4;
 
@@ -182,7 +197,7 @@ export const sendCommand = (session: Session, command: number, data: DataView | 
 };
 
 export const makeCommand = {
-	pan: (session: Session,n1:number,n2:number,n3:number) => makeDrw(session, ControlCommands.SubCmd).setDataQ(n1,n2,n3).note(".pan()"),
+	pan: (session: Session,n1:number=0,n2:number=0,n3:number=0) => makeDrw(session, ControlCommands.SubCmd).setDataQ(n1,n2,n3).note(`.pan(${n1}/${n2}/${n3})`),
 	panToN: (session: Session, pos:number) => makeCommand.pan(session,1,1,pos).note(".panToN()"),
 	toggleLight: (session: Session) => makeDrw(session, ControlCommands.LightToggle).note(".toggleLight()"),
 	toggleIR: (session: Session) => makeDrw(session, ControlCommands.IRToggle).note(".toggleIR()"),

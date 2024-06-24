@@ -1,8 +1,9 @@
 import { createSocket, RemoteInfo } from "node:dgram";
 import { config } from "./settings.js";
+import fs from "node:fs";
 import EventEmitter from "node:events";
 
-import { Commands, CommandsByValue } from "./datatypes.js";
+import { Commands, CommandsByValue, ControlCommandsByValue } from "./datatypes.js";
 import {
   handle_Close,
   handle_Drw,
@@ -35,6 +36,7 @@ export type Session = {
   frame_was_fixed: boolean;
   started: boolean;
   close: () => void;
+	packets: {};
 };
 
 export type PacketHandler = (session: Session, dv: DataView, rinfo: RemoteInfo) => void;
@@ -50,6 +52,7 @@ const handleIncoming: msgCb = (session, handlers, msg, rinfo) => {
   const ab = new Uint8Array(msg).buffer;
   const dv = new DataView(ab);
   const raw = dv.getUint16(0);
+	session.recPacket(dv);
   const cmd = CommandsByValue[raw];
 	// session.lastReceivedPacket = Date.now();
   logger.log("trace", `<< ${cmd}`);
@@ -125,6 +128,7 @@ export const makeSession = (
     devName: dev.devId,
     started: false,
     send: (msg: DataView) => {
+			if(msg._note) session._lastnote=msg._note;
 			let unackedDrw=session.unackedDrw;
       const raw = msg.getUint16(0);
       const cmd = CommandsByValue[raw];
@@ -195,6 +199,56 @@ export const makeSession = (
     logger.info(`Logging in to camera ${session.devName}`);
     onLogin(session);
   });
+
+  // Record selected packets for web viewing
+  session.packets={};
+  session._lastnote='';
+   session.recPacket=(buf: DataView) => {
+    if(buf._note) {
+      session._lastnote=buf._note;return;
+    }
+    let cmd1=Number(buf.getUint16(0));
+    let cmd1h='0x'+cmd1.toString(16);
+    let c1n=CommandsByValue[cmd1];
+    let buflen=buf.byteLength;
+    let len=buf.len();
+    let s=buf.getUint8(5);
+    let pkt={ buflen:len, cmd1: cmd1h, cmd1name:c1n, stream:s  };
+    if(buf._recpkt) pkt=buf._recpkt; else buf._recpkt=pkt;
+    let ad2=1;
+    if(cmd1!=0xf1d0 || s!=1) {
+      let cmd2=Number(buf.getUint16(10));
+      let cmd2h='0x'+cmd2.toString(16);
+      if(cmd2) {
+        pkt.cmd2=cmd2h;
+        ad2=ControlCommandsByValue[cmd2];
+        if(ad2) pkt.cmd2name=ad2; else ad2=cmd2h;
+      }
+    }
+    if(session._lastnote) pkt.lastsentnote=session._lastnote;
+    if(s!=1) {
+      let data=[];
+      for(var i=0;i<len;i++) {
+        data.push('0x'+Number(buf.getUint8(i)).toString(16));
+      }
+      if(buf._unscrambled) pkt.unscrambled='yes';
+      else if(len>24) {
+        if(!buf._data) buf.unscramble();
+        pkt._data=buf._data;
+      }
+      pkt.data=data;
+    }
+    if(!c1n) c1n=cmd1h;
+    if(!session.packets[c1n]) session.packets[c1n]={};
+    session.packets[c1n][ad2]=pkt;
+     return pkt;
+   }
+  session.getPackets=() => {
+    var str;
+    const page = fs.readFileSync("getpackets.js", { encoding: "utf-8" });
+    eval(page);
+    return str;
+  }
   return session;
 };
 

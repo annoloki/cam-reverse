@@ -56,6 +56,7 @@ const swVerToString = (swver: number): string => {
 export const createResponseForControlCommand = (session: Session, dv: DataView): DataView[] => {
   const start_type = dv.getUint16(8); // 0xa11 on control; data starts here on DATA pkt
   const cmd_id = dv.getUint16(10); // 0x1120
+  session.recPacket(dv);
   let payload_len = dv.getUint16(0xc,1);
   if (dv.byteLength > 20 && payload_len > dv.byteLength) {
     logger.warning(`Received a cropped payload: ${payload_len} when packet is ${dv.byteLength}`);
@@ -71,6 +72,7 @@ export const createResponseForControlCommand = (session: Session, dv: DataView):
   if (payload_len > rotate_chr) {
     // 20 = 16 (header) + 4 (??)
     XqBytesDec(dv.add(20), payload_len - 4, rotate_chr);
+    dv._unscrambled=1;
   }
 
   // the first 20 bytes are header

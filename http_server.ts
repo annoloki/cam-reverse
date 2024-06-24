@@ -149,6 +149,12 @@ export const serveHttp = (port: number) => {
         res.end();
         return;
       }
+      else if(cmd=="packets") {
+        res.setHeader("Content-Type", `text/javascript`);
+        res.write(s.getPackets());
+        res.end();
+        return;
+      }
       else if (cmd=="rotate") {
         let curPos = config.cameras[devId]?.rotate || 0;
         let nextPos = (curPos + 1) % 4;

@@ -60,6 +60,14 @@ export const ControlCommands = {
 	SubCmdAck: 0xff51, // CMD_PASSTHROUGH_STRING_PUT_ACK
 };
 
+type ct = Record<number, keyof typeof ControlCommands>;
+export const ControlCommandsByValue: ct = Object.keys(ControlCommands).reduce((acc: ct, cur) => {
+  let key: keyof typeof ControlCommands = cur as keyof typeof ControlCommands;
+  acc[ControlCommands[key]] = key;
+  return acc;
+}, {});
+
+
 export const ccDest: Record<number, number> = {
   [ControlCommands.ConnectUser]: 0xff00,
   [ControlCommands.DevStatus]: 0x0000,
