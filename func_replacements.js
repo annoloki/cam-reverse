@@ -41,10 +41,10 @@ export const XqBytesEnc = (inoutbuf, buflen, rotate) => {
     }
   }
   for (let i = 0; i < buflen - rotate; i++) {
-    inoutbuf.add(i).writeU8(new_buf[i + rotate]);
+    inoutbuf.setUint8(i,new_buf[i + rotate]);
   }
   for (let i = 0; i < rotate; i++) {
-    inoutbuf.add(buflen - rotate + i).writeU8(new_buf[i]);
+    inoutbuf.setUint8(buflen - rotate + i, new_buf[i]);
   }
 };
 
