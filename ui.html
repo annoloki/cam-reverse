@@ -101,22 +101,37 @@
 	</td></tr></table>
 	<script>
 	const gid=(id)=>document.getElementById(id);
-	const img=gid('img');var imgt=0;
-	function reloadimg() {
-		if(imgt) return;
-		imgt=window.setTimeout(()=>{
-			console.log('retry image load');
-			imgt=0;
-			img.src='camera';
+	{ // Image display
+		const img=gid('img');var imgt=0;
+		var exif=${exif};
+		var rotate=${rotate};
+		var mirror=${mirror};
+		var rots=[0,90,180,270];
+		function transimage() {
+			if(exif) img.style.transform='';
+			else{
+				let trans=[];
+				if(mirror) trans.push('scaleX(-1)');
+				if(rotate) trans.push('rotate('+rots[rotate]+'deg)');
+				return img.style.transform=trans.join(' ');
+			}
+		}
+		transimage();
+		function reloadimg() {
+			if(imgt) return;
+			imgt=window.setTimeout(()=>{
+				console.log('retry image load');
+				imgt=0;
+				img.src='camera';
+			},2000);
+			img.src='';
+		}
+		window.setInterval(()=>{
+			if(img.naturalHeight>0) return;
+			reloadimg();
 		},2000);
-		img.src='';
+		img.src='camera';
 	}
-	window.setInterval(()=>{
-		if(img.naturalHeight>0) return;
-		reloadimg();
-	},2000);
-	img.src='camera';
-
 	{ // Pan direction
 		let obtn;
 		for(let i=0;i<16;i++) {

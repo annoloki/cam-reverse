@@ -34,7 +34,19 @@ const cameraName = (id: string): string => config.cameras[id].alias || id;
 
 // The HTTP server.
 export const serveHttp = (port: number) => {
-  
+
+  let _rx;
+  const procpage=(res, page, devId):void=>{
+    let s,t,vars={
+      id:devId, name:cameraName(devId),
+      exif:config.cameras[devId].exif ? 1 : 0,
+      rotate:config.cameras[devId].rotate,
+      mirror:config.cameras[devId].mirror,
+      audio:config.cameras[devId].audio ? "true" : "false"
+    };
+    if(!_rx) _rx=new RegExp("\\${("+Object.keys(vars).join('|')+")}",'g');
+    res.end( page.replace(_rx, (s,t)=>vars[s,t]) );
+  };
   const server = http.createServer((req, res) => {
 
     let urlbits=req.url.split("/");
@@ -61,30 +73,11 @@ export const serveHttp = (port: number) => {
       return;
     }
 
-    let devId, cmd, n1, n2, n3;
-    [x,devId, cmd, n1, n2, n3]=urlbits;
+    // let devId, cmd, n1, n2, n3;
+    let [x,devId, cmd, n1, n2, n3]=urlbits;
     let s= sessions[devId] ? sessions[devId] : undefined;
     if(s) {
-      if (cmd=='ui') {
-        if (s === undefined) {
-          res.writeHead(400);
-          res.end("invalid ID");
-          return;
-        }
-        if (!s.connected) {
-          res.writeHead(400);
-          res.end("Nothing online");
-          return;
-        }
-				const page = fs.readFileSync("asd.html", { encoding: "utf-8" });
-        const ui = page
-          .replace(/\${id}/g, devId)
-          .replace(/\${name}/g, cameraName(devId))
-          .replace(/\${audio}/g, config.cameras[devId].audio ? "true" : "false");
-        res.end(ui);
-        return;
-      }
-      else if (cmd=='audio') {
+      if(cmd=='audio') {
         if (s === undefined) {
           res.writeHead(400);
           res.end("invalid ID");
@@ -173,27 +166,27 @@ export const serveHttp = (port: number) => {
       }
       else if (cmd=="camera") {
         logger.info(`Video stream requested for camera ${devId}`);
-        if (s === undefined) {
-          res.writeHead(400);
-          res.end(`Camera ${devId} not discovered`);
-          return;
-        }
         if (!s.connected) {
           res.writeHead(400);
           res.end(`Camera ${devId} offline`);
           return;
         }
-
         res.setHeader("Content-Type", `multipart/x-mixed-replace; boundary="${BOUNDARY}"`);
         res.write(header);
-
         responses[devId].push(res);
         res.on("close", () => {
           responses[devId] = responses[devId].filter((r) => r !== res);
           logger.info(`Video stream closed for camera ${devId}`);
         });
         return;
-      } 
+      }
+      else if(cmd.match(/^[a-z0-9_]+$/) && fs.existsSync(cmd+'.html')) {
+        fs.readFile(cmd+'.html', { encoding: "utf-8" }, (err,page)=>{
+          if(err) { res.writeHead(500); return res.end("Error"); }
+          procpage(res, page, devId);
+        });
+        return;
+      }
     }
     res.writeHead(400);
     res.end(`Invalid command "${cmd}"`);
@@ -217,7 +210,7 @@ export const serveHttp = (port: number) => {
     audioResponses[dev.devId] = [];
     const s = makeSession(Handlers, dev, rinfo, startSession, 5000);
     sessions[dev.devId] = s;
-    config.cameras[dev.devId] = { rotate: 2, mirror: false, fix_packet_loss:true, audio: false, ...(config.cameras[dev.devId] || {}) };
+    let conf = config.cameras[dev.devId] = { exif: 0, rotate: 2, mirror: 0, fix_packet_loss:true, audio: 0, ...(config.cameras[dev.devId] || {}) };
 
     const header = Buffer.from(`--${BOUNDARY}\r\nContent-Type: image/jpeg\r\n\r\n`);
 
@@ -226,19 +219,23 @@ export const serveHttp = (port: number) => {
       delete sessions[dev.devId];
     });
     s.eventEmitter.on("frame", () => {
+      let assembled;
+      if(conf.exif) {
         // Add an EXIF header to indicate if the image should be rotated or mirrored
-        let orientation = config.cameras[dev.devId].rotate;
-        orientation = config.cameras[dev.devId].mirror ? oMapMirror[orientation] : oMap[orientation];
+        let orientation = conf.rotate;
+        orientation = conf.mirror ? oMapMirror[orientation] : oMap[orientation];
         const exifSegment = orientations[orientation];
         const jpegHeader = addExifToJpeg(s.curImage[0], exifSegment);
-        const assembled = Buffer.concat([jpegHeader, ...s.curImage.slice(1)]);
-        responses[dev.devId].forEach((res) => {
-          res.cork();
-          res.write(assembled);
-          res.write(header);
-          res.uncork();
-        });
+        assembled = Buffer.concat([jpegHeader, ...s.curImage.slice(1)]);
+      }
+      else assembled=Buffer.concat(s.curImage);
+      responses[dev.devId].forEach((res) => {
+        res.cork();
+        res.write(assembled);
+        res.write(header);
+        res.uncork();
       });
+    });
 
     if (config.cameras[dev.devId].audio) {
       s.eventEmitter.on("audio", ({ gap, data }) => {

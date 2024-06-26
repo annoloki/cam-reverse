@@ -16,6 +16,7 @@ interface CameraConfig {
   mirror?: boolean;
   audio?: boolean;
   fix_packet_loss?: boolean;
+  exif?: boolean;
 }
 
 interface AppConfig {
