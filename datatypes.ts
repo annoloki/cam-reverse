@@ -56,8 +56,8 @@ export const ControlCommands = {
   VideoParamGet: 0x1930, // CMD_PEER_VIDEOPARAM_GET
   IRToggle: 0x0a30, // CMD_PEER_IRCUT_ONOFF
   LightToggle: 0x0b30, // CMD_PEER_LIGHT_ONOFF
-	SubCmd: 0xff50, // CMD_PASSTHROUGH_STRING_PUT
-	SubCmdAck: 0xff51, // CMD_PASSTHROUGH_STRING_PUT_ACK
+  SubCmd: 0xff50, // CMD_PASSTHROUGH_STRING_PUT
+  SubCmdAck: 0xff51, // CMD_PASSTHROUGH_STRING_PUT_ACK
 };
 
 type ct = Record<number, keyof typeof ControlCommands>;

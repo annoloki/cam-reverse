@@ -65,7 +65,7 @@ export const createResponseForControlCommand = (session: Session, dv: DataView):
 
   if (start_type != 0x110a) {
     logger.error(`Expected start_type to be 0xa11, got 0x${start_type.toString(16)}`);
-		dv.dump();
+    dv.dump();
     return [];
   }
   const rotate_chr = 4;
@@ -195,16 +195,15 @@ const deal_with_data = (session: Session, dv: DataView) => {
   }
 
   const FRAME_HEADER = [0x55, 0xaa, 0x15, 0xa8];
-	const JPEG_HEADER =  [0xff, 0xd8, 0xff, 0xdb];
+  const JPEG_HEADER =  [0xff, 0xd8, 0xff, 0xdb];
   const m_hdr = dv.readBytesFrom(8,4);
   const pkt_id = dv.getUint16(6);
   const STREAM_TYPE_AUDIO = 0x06;
   const STREAM_TYPE_JPEG = 0x03;
 
   const startNewFrame = (buf: ArrayBuffer) => {
-		// if(session.startFrame==pkt_id && !session.frame_is_bad) return;
     if (session.curImage.length > 0 && !session.frame_is_bad ) session.eventEmitter.emit("frame");
-		session.startFrame=pkt_id
+    session.startFrame=pkt_id
     session.frame_was_fixed = false;
     session.frame_is_bad = false;
     session.curImage = [Buffer.from(buf)];
@@ -212,11 +211,10 @@ const deal_with_data = (session: Session, dv: DataView) => {
   };
 
   let is_framed = m_hdr.startsWith(FRAME_HEADER);
-	let is_new_image = m_hdr.startsWith(JPEG_HEADER);
+  let is_new_image = m_hdr.startsWith(JPEG_HEADER);
 
   if (is_framed) {
     const stream_type = dv.getUint8(12);
-		// logger.info(`Got framed data packet ${pkt_id} type ${stream_type} len ${pkt_len}.`);
     if (stream_type == STREAM_TYPE_AUDIO) {
       const audio_len = dv.getUint16(8 + 16,1);
       const audio_buf = dv.readBytesFrom(40, audio_len).buffer; // 8 for pkt header, 32 for `stream_head_t`
@@ -230,15 +228,13 @@ const deal_with_data = (session: Session, dv: DataView) => {
         const data = dv.readBytesFrom(32+8,to_read);
         startNewFrame(data.buffer);
       }
-    } 
-		else {
+    }
+    else {
       logger.debug(`Ignoring data frame with stream type ${stream_type} - not implemented`);
       // not sure what these are for, there's one per frame. maybe alignment?
     }
-  } 
-	else {
-		// logger.info(`Got unframed data packet ${pkt_id} newimg:${is_new_image} len ${pkt_len}.`);
-    
+  }
+  else {
     // a new JPEG image may begin either
     // - as a frame with stream_type == 0x03
     // - as unframed data, started by JPEG_HEADER
@@ -247,12 +243,10 @@ const deal_with_data = (session: Session, dv: DataView) => {
     const data = dv.readBytesFrom(8,pkt_len);
     // this only happens on un-framed-cameras, which start the JPEG image
     // directly
-    
-
     if (is_new_image) {
       startNewFrame(data.buffer);
     }
-		else {
+    else {
       if (pkt_id <= session.rcvSeqId) {
         // retransmit
         return true;
@@ -263,9 +257,9 @@ const deal_with_data = (session: Session, dv: DataView) => {
       if (pkt_id > session.rcvSeqId + 1) {
         if (!session.frame_is_bad) {
           session.frame_is_bad = true;
-					if (!config.cameras[session.devName].fix_packet_loss) {
-						logger.debug(`Dropping corrupt frame ${pkt_id}, expected ${session.rcvSeqId + 1}`);
-					}
+          if (!config.cameras[session.devName].fix_packet_loss) {
+            logger.debug(`Dropping corrupt frame ${pkt_id}, expected ${session.rcvSeqId + 1}`);
+          }
         }
         // this should always be enabled but currently it seems to cause more
         // visual distortion than just missing some frames
@@ -276,14 +270,12 @@ const deal_with_data = (session: Session, dv: DataView) => {
         if (session.curImage.length = 1) return false; // header does not have markers
 
         let lastFrameSlice = session.curImage[session.curImage.length - 1];
-				let lastResetMarker;
-				// if(lastFrameSlice) {
-					lastResetMarker = findAllResetMarkers(lastFrameSlice).pop();
-					if (lastResetMarker == undefined) {
-						// not storing rcvSeqId as this frame did not put us back in track
-						return false;
-					}
-				// }
+        let lastResetMarker;
+        lastResetMarker = findAllResetMarkers(lastFrameSlice).pop();
+        if (lastResetMarker == undefined) {
+          // not storing rcvSeqId as this frame did not put us back in track
+          return false;
+        }
 
         const firstResetMarker = findAllResetMarkers(b).shift();
         if (firstResetMarker == undefined) {
@@ -319,10 +311,12 @@ const findAllResetMarkers = (b: Buffer): number[] => {
   return ret;
 };
 
+// For single acks. Use session->dataAck(pkt_id) for
+// coalescing acks
 const makeDrwAck = (dv: DataView): DataView => {
   const pkt_id = dv.seq();
   const m_stream = dv.stream(); // data = 1, control = 0
-  const item_count = 1; // TODO coalesce acks
+  const item_count = 1;
   const reply_len = item_count * 2 + 4; // 4 hdr, 2b per item
   const outbuf = new DataView(new Uint8Array(10).buffer);
   outbuf.setUint16(0,Commands.DrwAck);
@@ -331,9 +325,6 @@ const makeDrwAck = (dv: DataView): DataView => {
   outbuf.setUint8(5,m_stream);
   outbuf.setUint16(6,item_count);
   outbuf.setUint16(8,pkt_id);
-  // for (let i = 0; i < item_count; i++) {
-    // outbuf.setUint16(8 + i * 2,pkt_id);
-  // }
   return outbuf;
 };
 
@@ -350,11 +341,10 @@ export const handle_DrwAck = (session: Session, dv: DataView) => {
 export const handle_Drw = (session: Session, dv: DataView) => {
   const m_stream = dv.getUint8(5); // data = 1, control = 0
   if (m_stream == 1) {
-		session.dataAck(dv.seq());
+    session.dataAck(dv.seq()); // Add pkt_id to list to ack
     deal_with_data(session, dv);
-		// session.send(makeDrwAck(dv));
   } else if (m_stream == 0) {
-		session.send(makeDrwAck(dv));
+    session.send(makeDrwAck(dv));
     const b = createResponseForControlCommand(session, dv);
     b.forEach(session.send);
   } else {

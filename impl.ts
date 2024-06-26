@@ -12,200 +12,200 @@ const str2byte = (s: string): number[] => {
 };
 
 { // Dataview for packet
-	DataView.prototype.note=function(note) {
-		this._note=note;return this;
-	};
-	DataView.prototype._init = function(session) { // 0, 4, 5, 8
-		const CHANNEL = 0;
-		const START_CMD = 0x110a;
-		this.setUint16(0,Commands.Drw);
-		this.setUint8(4,0xd1);
-		this.setUint8(5,CHANNEL);
-		this.setUint16(8,START_CMD);
-		this._data=[];
-		this._seqs=[];
-		this._session=session;
-		return this;
-	};
-	DataView.prototype.dump = function() {
-		let str=[ "\nPacket ID: ",this.seq(),'\n',
-			(this._note?'Packet _note:'+this._note+'\n':''),
-			hexdump(this), '\nPayload:',hexdump(this.getDV())
-		];
-		logger.info(str.join(''));
-		return this;
-	};
-	DataView.prototype.getDV = function() {
-		if(!this._data && !this._note) {
-			if(this.len()>20) {
-				let ud=new DataView(this.buffer,8,this.byteLength-8);
-				XqBytesDec(ud,this.byteLength-8,4);
-				return ud;
-			}
-			this._data=[];
-		}
-		let buflen=this._data.length;
-		let new_buf = new Uint8Array(buflen);
-		for(var i=0;i<buflen;i++) new_buf[i]=this._data[i];
-		return new DataView(new_buf.buffer);
-	}
+  DataView.prototype.note=function(note) {
+    this._note=note;return this;
+  };
+  DataView.prototype._init = function(session) { // 0, 4, 5, 8
+    const CHANNEL = 0;
+    const START_CMD = 0x110a;
+    this.setUint16(0,Commands.Drw);
+    this.setUint8(4,0xd1);
+    this.setUint8(5,CHANNEL);
+    this.setUint16(8,START_CMD);
+    this._data=[];
+    this._seqs=[];
+    this._session=session;
+    return this;
+  };
+  DataView.prototype.dump = function() {
+    let str=[ "\nPacket ID: ",this.seq(),'\n',
+      (this._note?'Packet _note:'+this._note+'\n':''),
+      hexdump(this), '\nPayload:',hexdump(this.getDV())
+    ];
+    logger.info(str.join(''));
+    return this;
+  };
+  DataView.prototype.getDV = function() {
+    if(!this._data && !this._note) {
+      if(this.len()>20) {
+        let ud=new DataView(this.buffer,8,this.byteLength-8);
+        XqBytesDec(ud,this.byteLength-8,4);
+        return ud;
+      }
+      this._data=[];
+    }
+    let buflen=this._data.length;
+    let new_buf = new Uint8Array(buflen);
+    for(var i=0;i<buflen;i++) new_buf[i]=this._data[i];
+    return new DataView(new_buf.buffer);
+  }
 
-	DataView.prototype.len = function(num) { // 2
-		if(!arguments.length) return 4+this.getUint16(2);
-		this.setUint16(2,num-4);
-		return this;
-	};
-	DataView.prototype.stream = function(num) { // 5
-		if(!arguments.length) return this.getUint8(5);
-		this.setUint8(5,num);
-		return this;
-	};
-	DataView.prototype.seq = function(num) { // 6
-		if(!arguments.length) return this.getUint16(6);
-		this.setUint16(6,num);
-		this._seqs[num]=num;
-		return this;
-	};
-	DataView.prototype.Ack = function(id) {
-		let c=this._note;
-		for(var num in this._seqs) {
-			logger.debug(`Removing ${num}(${c}) from pending (Ack ${id})`);
-			delete this._session.unackedDrw[num]
-		}
-		delete this._seqs;
-	}
-	DataView.prototype.cmdNum = function(num) { // 10, 14
-		if(!arguments.length) return this.getUint16(10);
-		this.setUint16(10,num);
-		this.setUint16(14,ccDest[num]);
-		return this;
-	};
-	DataView.prototype.paylen = function(num) { // 12
-		if(!arguments.length) return this.getUint16(12,true);
-		this.setUint16(12,num,true);
-		return this;
-	};
-	DataView.prototype.ticket = function(arr) { // 16..19
-		if(!arguments.length) return this.getBigUint64(16);
-		this.setUint8(16,arr[0]);
-		this.setUint8(17,arr[1]);
-		this.setUint8(18,arr[2]);
-		this.setUint8(19,arr[3]);
-		return this;
-	}
-	DataView.prototype.setDataByte=function(i:number,val:number) { // 20+num
-		const OFFSET=20, rotate=4, buflen=this._data.length;
-		this._data[i]=val=parseInt(val);
-		val += ((val & 1) ? -1 : 1);
-		this.setUint8( OFFSET + i-rotate + (i<rotate ? buflen : 0) , val );
-		return this;
-	}
-	DataView.prototype.setDataQ=function(n1:number,n2:number,n3:number) {
-		this._data[0x13]=n1;
-		this._data[0x17]=n2;
-		this._data[0x1b]=n3;
-		this.scramble();
-		return this;
-	}
+  DataView.prototype.len = function(num) { // 2
+    if(!arguments.length) return 4+this.getUint16(2);
+    this.setUint16(2,num-4);
+    return this;
+  };
+  DataView.prototype.stream = function(num) { // 5
+    if(!arguments.length) return this.getUint8(5);
+    this.setUint8(5,num);
+    return this;
+  };
+  DataView.prototype.seq = function(num) { // 6
+    if(!arguments.length) return this.getUint16(6);
+    this.setUint16(6,num);
+    this._seqs[num]=num;
+    return this;
+  };
+  DataView.prototype.Ack = function(id) {
+    let c=this._note;
+    for(var num in this._seqs) {
+      logger.debug(`Removing ${num}(${c}) from pending (Ack ${id})`);
+      delete this._session.unackedDrw[num]
+    }
+    delete this._seqs;
+  }
+  DataView.prototype.cmdNum = function(num) { // 10, 14
+    if(!arguments.length) return this.getUint16(10);
+    this.setUint16(10,num);
+    this.setUint16(14,ccDest[num]);
+    return this;
+  };
+  DataView.prototype.paylen = function(num) { // 12
+    if(!arguments.length) return this.getUint16(12,true);
+    this.setUint16(12,num,true);
+    return this;
+  };
+  DataView.prototype.ticket = function(arr) { // 16..19
+    if(!arguments.length) return this.getBigUint64(16);
+    this.setUint8(16,arr[0]);
+    this.setUint8(17,arr[1]);
+    this.setUint8(18,arr[2]);
+    this.setUint8(19,arr[3]);
+    return this;
+  }
+  DataView.prototype.setDataByte=function(i:number,val:number) { // 20+num
+    const OFFSET=20, rotate=4, buflen=this._data.length;
+    this._data[i]=val=parseInt(val);
+    val += ((val & 1) ? -1 : 1);
+    this.setUint8( OFFSET + i-rotate + (i<rotate ? buflen : 0) , val );
+    return this;
+  }
+  DataView.prototype.setDataQ=function(n1:number,n2:number,n3:number) {
+    this._data[0x13]=n1;
+    this._data[0x17]=n2;
+    this._data[0x1b]=n3;
+    this.scramble();
+    return this;
+  }
 
-	DataView.prototype.scramble = function() { // 20...
-		const OFFSET=20, rotate=4;
-		const data=this._data;
-		const buflen=data.length;
-		for (let i = 0; i < buflen; i++) {
-			let v=parseInt(data[i]);
-			v += ((v & 1) ? -1 : 1);
-			this.setUint8( OFFSET + i-rotate + (i<rotate ? buflen : 0) , v );
-		}
-		return this;
-	}
-	DataView.prototype.unscramble = function() { // 20...
-		const OFFSET=20, rotate=4;
-		const buflen=this.byteLength-OFFSET;
-		let data=[];
-		for (let i = 0; i < buflen; i++) {
-			let b:number = this.getUint8(i);
-			b += ( b&1 ? -1 : 1 );
-			i<rotate
-			data[ i - rotate + (i<rotate?buflen:0) ]=b;
-		}
-		this._data=data;
-		return this;
-	}
-	DataView.prototype.equals = function(dv) {
-		if(this.byteLength!=dv.byteLength) return false;
-		var l=this.byteLength;
-		for(var i=0;i<l;i++) {
-			if(this.getUint8(i) != dv.getUint8(i)) return false;
-		}
-		return true;
-	}
-	DataView.prototype.send = function() {
-		let s=this._session;
-		return s.send(this);
-	}
+  DataView.prototype.scramble = function() { // 20...
+    const OFFSET=20, rotate=4;
+    const data=this._data;
+    const buflen=data.length;
+    for (let i = 0; i < buflen; i++) {
+      let v=parseInt(data[i]);
+      v += ((v & 1) ? -1 : 1);
+      this.setUint8( OFFSET + i-rotate + (i<rotate ? buflen : 0) , v );
+    }
+    return this;
+  }
+  DataView.prototype.unscramble = function() { // 20...
+    const OFFSET=20, rotate=4;
+    const buflen=this.byteLength-OFFSET;
+    let data=[];
+    for (let i = 0; i < buflen; i++) {
+      let b:number = this.getUint8(i);
+      b += ( b&1 ? -1 : 1 );
+      i<rotate
+      data[ i - rotate + (i<rotate?buflen:0) ]=b;
+    }
+    this._data=data;
+    return this;
+  }
+  DataView.prototype.equals = function(dv) {
+    if(this.byteLength!=dv.byteLength) return false;
+    var l=this.byteLength;
+    for(var i=0;i<l;i++) {
+      if(this.getUint8(i) != dv.getUint8(i)) return false;
+    }
+    return true;
+  }
+  DataView.prototype.send = function() {
+    let s=this._session;
+    return s.send(this);
+  }
 }
 
-// 'data' can be a DataView, Array, or number of bytes to allocate 
+// 'data' can be a DataView, Array, or number of bytes to allocate
 export function makeDrw (session: Session, command: number, data:DataView|number|Array): DataView {
   const DRW_HEADER_LEN = 0x10;
   const TOKEN_LEN = 0x4;
 
-	let datalen=0;
-	if(Number.isInteger(data)) datalen=data;
-	else if(!data && command == ControlCommands.SubCmd) datalen=28;
-	else if (data && data.byteLength) datalen=data.byteLength;
+  let datalen=0;
+  if(Number.isInteger(data)) datalen=data;
+  else if(!data && command == ControlCommands.SubCmd) datalen=28;
+  else if (data && data.byteLength) datalen=data.byteLength;
 
-	let pkt_len = DRW_HEADER_LEN + TOKEN_LEN + datalen;
+  let pkt_len = DRW_HEADER_LEN + TOKEN_LEN + datalen;
   const ret = new DataView(new Uint8Array(pkt_len).buffer);
-	let cstr=makeDrw.caller.toString();
-	if(cstr.length<20) ret._note=cstr;
-	ret._init(session);
-	ret.len( pkt_len );
-	ret.paylen( TOKEN_LEN + datalen );
-	
-	if (!data && command == ControlCommands.SubCmd) {
-		ret._data=[ 24,0,0,0,1,10,80,73,0,16,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ];
-		ret.scramble();
-	}
-	else if(Number.isInteger(data)) {
-		for(let i=0;i<data;i++) ret._data[i]=0;
-		ret.scramble();
-	}
-  else if (data && datalen > 4) {
-		for(let i=0;i<datalen;i++) ret._data[i]=data.getUint8(i);
-		ret.scramble();
-  }
-	else if (data && datalen <= 4) {
-		for(let i=0;i<datalen;i++) {
-			ret._data[i]=data[i];
-			ret.setUint8(20 + i, data[i]);
-		}
-	}
+  let cstr=makeDrw.caller.toString();
+  if(cstr.length<20) ret._note=cstr;
+  ret._init(session);
+  ret.len( pkt_len );
+  ret.paylen( TOKEN_LEN + datalen );
 
-	ret.seq(session.outgoingCommandId++);
-	if(command) ret.cmdNum(command);
-	ret.ticket(session.ticket);
-	
+  if (!data && command == ControlCommands.SubCmd) {
+    ret._data=[ 24,0,0,0,1,10,80,73,0,16,255,255,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 ];
+    ret.scramble();
+  }
+  else if(Number.isInteger(data)) {
+    for(let i=0;i<data;i++) ret._data[i]=0;
+    ret.scramble();
+  }
+  else if (data && datalen > 4) {
+    for(let i=0;i<datalen;i++) ret._data[i]=data.getUint8(i);
+    ret.scramble();
+  }
+  else if (data && datalen <= 4) {
+    for(let i=0;i<datalen;i++) {
+      ret._data[i]=data[i];
+      ret.setUint8(20 + i, data[i]);
+    }
+  }
+
+  ret.seq(session.outgoingCommandId++);
+  if(command) ret.cmdNum(command);
+  ret.ticket(session.ticket);
+
   return ret;
 }
 export const sendCommand = (session: Session, command: number, data: DataView | null): DataView  => {
   let buf=makeDataReadWrite(session, command, data);
-	session.send(buf);
-	// delete session.unackedDrw[session.outgoingCommandId-1];
-	return buf;
+  session.send(buf);
+  // delete session.unackedDrw[session.outgoingCommandId-1];
+  return buf;
 };
 
 export const makeCommand = {
-	pan: (session: Session,n1:number=0,n2:number=0,n3:number=0) => makeDrw(session, ControlCommands.SubCmd).setDataQ(n1,n2,n3).note(`.pan(${n1}/${n2}/${n3})`),
-	panToN: (session: Session, pos:number) => makeCommand.pan(session,1,1,pos).note(".panToN()"),
-	toggleLight: (session: Session) => makeDrw(session, ControlCommands.LightToggle).note(".toggleLight()"),
-	toggleIR: (session: Session) => makeDrw(session, ControlCommands.IRToggle).note(".toggleIR()"),
-	setRes: (session: Session, q:number) => makeDrw(session, ControlCommands.VideoParamSet, 8).setDataByte(0,1).setDataByte(4,q).note(".setRes"),
-	setQlty:(session: Session, q:number) => makeDrw(session, ControlCommands.VideoParamSet, 8).setDataByte(0,7).setDataByte(4,q).note(".setQlty"),
-	startVideo: (session: Session) => makeDrw(session, ControlCommands.StartVideo).note(".startVideo()"),
-	stopVideo: (session: Session) => makeDrw(session, ControlCommands.StopVideo).note(".stopVideo()"),
-	reboot: (session: Session) => makeDrw(session, ControlCommands.Reboot).note(".reboot()"),
+  pan: (session: Session,n1:number=0,n2:number=0,n3:number=0) => makeDrw(session, ControlCommands.SubCmd).setDataQ(n1,n2,n3).note(`.pan(${n1}/${n2}/${n3})`),
+  panToN: (session: Session, pos:number) => makeCommand.pan(session,1,1,pos).note(".panToN()"),
+  toggleLight: (session: Session) => makeDrw(session, ControlCommands.LightToggle).note(".toggleLight()"),
+  toggleIR: (session: Session) => makeDrw(session, ControlCommands.IRToggle).note(".toggleIR()"),
+  setRes: (session: Session, q:number) => makeDrw(session, ControlCommands.VideoParamSet, 8).setDataByte(0,1).setDataByte(4,q).note(".setRes"),
+  setQlty:(session: Session, q:number) => makeDrw(session, ControlCommands.VideoParamSet, 8).setDataByte(0,7).setDataByte(4,q).note(".setQlty"),
+  startVideo: (session: Session) => makeDrw(session, ControlCommands.StartVideo).note(".startVideo()"),
+  stopVideo: (session: Session) => makeDrw(session, ControlCommands.StopVideo).note(".stopVideo()"),
+  reboot: (session: Session) => makeDrw(session, ControlCommands.Reboot).note(".reboot()"),
 };
 
 const makeDataReadWriteOrig = (session: Session, command: number, data: DataView | null): DataView => {
@@ -246,17 +246,17 @@ const makeDataReadWriteOrig = (session: Session, command: number, data: DataView
 };
 
 const makeDataReadWriteChk = (session: Session, command: number, data: DataView | null): DataView => {
-	let v2=makeDrw(session, command, data);
-	let v1=makeDataReadWriteOrig(session, command, data);
-	if(v1.equals(v2)) {
-		logger.warning(`MakeDRW outputs okay for ${command}`);
-	}else{
-		logger.warning(`MakeDRW outputs not okay for ${command}`);
-		logger.info("\nv1:\n"+hexdump(v1,{useAnsi:1, ansiColor:1}));
-		logger.info("\nv2:\n"+hexdump(v2,{useAnsi:1, ansiColor:1}));
-		logger.info("'nv2 data:\n"+hexdump(v2.getDV(),{useAnsi:1, ansiColor:1}));
-	}
-	return v2;
+  let v2=makeDrw(session, command, data);
+  let v1=makeDataReadWriteOrig(session, command, data);
+  if(v1.equals(v2)) {
+    logger.warning(`MakeDRW outputs okay for ${command}`);
+  }else{
+    logger.warning(`MakeDRW outputs not okay for ${command}`);
+    logger.info("\nv1:\n"+hexdump(v1,{useAnsi:1, ansiColor:1}));
+    logger.info("\nv2:\n"+hexdump(v2,{useAnsi:1, ansiColor:1}));
+    logger.info("'nv2 data:\n"+hexdump(v2.getDV(),{useAnsi:1, ansiColor:1}));
+  }
+  return v2;
 };
 
 // const makeDataReadWrite = makeDataReadWriteChk;  // for testing
