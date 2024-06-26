@@ -1,7 +1,6 @@
 let lorient,lostr;
 // Create a minimal EXIF segment with orientation
 export const createExifOrientation = (orientation: number) => {
-  if(orientation==lorient) return lostr;
   const tiffHeader = Buffer.from("49492A0008000000", "hex");
   const ifdEntry = Buffer.concat([
     Buffer.from("0100", "hex"), // Number of IFD entries
@@ -15,8 +14,7 @@ export const createExifOrientation = (orientation: number) => {
   const segmentLength = Buffer.from([(exifData.length + 2) >> 8, (exifData.length + 2) & 0xff]);
   const exifHeader = Buffer.concat([Buffer.from("FFE1", "hex"), segmentLength]);
 
-  lorient=orientation;
-  return lostr=Buffer.concat([exifHeader, exifData]);
+  return Buffer.concat([exifHeader, exifData]);
 };
 
 export const addExifToJpeg = (jpegData: Buffer, exifSegment: Buffer) => {
