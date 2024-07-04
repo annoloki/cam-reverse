@@ -220,31 +220,30 @@ const deal_with_data = (session: Session, dv: DataView) => {
       let lid=session.rcvSeqId;
       let behind=pkt_id - lid;
       if(retry==0) session.counter.recvData+=buf.byteLength;
-      if(pkt_id<lid) return;
+      if(pkt_id<=lid) return;
       if(!retries[retry]) retries[retry]=1
       else retries[retry]++;
       if(retry>0) retries[retry-1]--;
 
       if(lid==0 || pkt_id == lid+1 || pkt_id > lid+64) {
-        if(pkt_id > lid+64) logger.warning("Skipping packets (behind in sequence ${behind})");
+        if(pkt_id > lid+64) logger.warning(`Skipping packets (behind in sequence ${behind})`);
         session.sendSeg(buf,1);
         session.rcvSeqId=pkt_id;
         return;
       }
       if(!reneeds[behind]) reneeds[behind]=1
       else reneeds[behind]++;
-      setTimeout(()=>{ startNewFrame(buf, retry+1); }, 10*(retry+1));
+      setTimeout(()=>{ startNewFrame(buf, retry+1); }, (behind*2) + 5*retry + 10);
     };
     addToFrame = (buf: ArrayBuffer|Buffer|string, retry=0) => {
       if(buf instanceof ArrayBuffer) buf=Buffer.from(buf);
       if(retry==0) session.counter.recvData+=buf.byteLength;
       let lid=session.rcvSeqId;
-      if(pkt_id<lid) return;
+      if(pkt_id<=lid) return;
       if(!retries[retry]) retries[retry]=1
       else retries[retry]++;
       if(retry>0) retries[retry-1]--;
       if(pkt_id == lid+1) {
-        if(retry>1) logger.info("Sending pkt ${pkt_id} on retry ${retry}");
         session.sendSeg(buf,0);
         session.rcvSeqId=pkt_id;
         return;
@@ -253,7 +252,7 @@ const deal_with_data = (session: Session, dv: DataView) => {
       if(!reneeds[behind]) reneeds[behind]=1
       else reneeds[behind]++;
 
-      setTimeout(()=>{ addToFrame(buf, retry+1); }, 10*(retry+1));
+      setTimeout(()=>{ addToFrame(buf, retry+1); }, (behind*2) + 5*retry + 10);
     };
   }
 
