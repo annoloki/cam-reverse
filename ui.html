@@ -50,7 +50,7 @@
 	</style>
 	</head><body>
 	<h2>${name}</h2>
-	<table border=0><tr><td valign=top><a href="camera"><img id=img style="width:700px" src="camera"/></a></td>
+	<table border=0><tr><td valign=top><img id=img style="width:700px" src="camera"/></td>
 	<td valign=top>
 		<table border=0>
 			<tr> <td><button id=speed_2 class="btn b2"> vFast </button>
@@ -96,8 +96,8 @@
 			</table>
 		<hr/>
 		<button onclick="toggle_audio()" id=audio disabled=true>Audio: disabled</button>
-		<button onclick="fetch('rotate')">Rotate</button>
-		<button onclick="fetch('mirror')">Mirror</button>
+		<button onclick="exif ? fetch('rotate') : dorotate();">Rotate</button>
+		<button onclick="exif ? fetch('mirror') : domirror()">Mirror</button>
 	</td></tr></table>
 	<script>
 	const gid=(id)=>document.getElementById(id);
@@ -117,6 +117,14 @@
 			}
 		}
 		transimage();
+		function dorotate() {
+			if(++rotate > 3) rotate=0
+			transimage();
+		}
+		function domirror() {
+			mirror=!mirror;
+			transimage();
+		}
 		function reloadimg() {
 			if(imgt) return;
 			imgt=window.setTimeout(()=>{
