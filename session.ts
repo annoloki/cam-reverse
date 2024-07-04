@@ -215,7 +215,7 @@ export const makeSession = (
     let pkt={ buflen:len, cmd1: cmd1h, cmd1name:c1n, stream:s  };
     if(buf._recpkt) pkt=buf._recpkt; else buf._recpkt=pkt;
     let ad2=1;
-    if(cmd1!=0xf1d0 || s!=1) {
+    if(len>12 && (cmd1!=0xf1d0 || s!=1)) {
       let cmd2=Number(buf.getUint16(10));
       let cmd2h='0x'+cmd2.toString(16);
       if(cmd2) {
