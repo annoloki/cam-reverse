@@ -67,6 +67,7 @@ yargs(hideBin(process.argv))
       if (majorVersion < 16) {
         logger.error(`Node version ${majorVersion} is not supported, may malfunction`);
       }
+      config.discovery_ips = [argv.discovery_ip];
       pair({ ssid: argv.ssid, password: argv.password });
     },
   )
