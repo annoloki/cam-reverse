@@ -181,7 +181,7 @@ export const makeSession = (
     },
   };
 
-  const ackTimer = setInterval( session.sendAcks ,100);
+  session.timers.push( setInterval( session.sendAcks ,100) );
 
   session.eventEmitter.on("disconnect", () => {
     logger.info(`Disconnected from camera ${session.devName} at ${session.dst_ip}`);
