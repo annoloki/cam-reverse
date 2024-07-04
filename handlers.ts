@@ -225,8 +225,8 @@ const deal_with_data = (session: Session, dv: DataView) => {
       else retries[retry]++;
       if(retry>0) retries[retry-1]--;
 
-      if(lid==0 || pkt_id == lid+1 || pkt_id > lid+64) {
-        if(pkt_id > lid+64) logger.warning(`Skipping packets (behind in sequence ${behind})`);
+      if(lid==0 || pkt_id == lid+1 || pkt_id > lid+32) {
+        if(pkt_id > lid+32) logger.warning(`Skipping packets (behind in sequence ${behind})`);
         session.sendSeg(buf,1);
         session.rcvSeqId=pkt_id;
         return;
@@ -339,7 +339,7 @@ const deal_with_data = (session: Session, dv: DataView) => {
       session.rcvSeqId = pkt_id;
       if (session.curImage != null) {
         session.curImage.push(b);
-        if(retry==0) session.counter.recvData+=b.byteLength;
+        if(fix_packet_loss < 2 || retry==0) session.counter.recvData+=b.byteLength;
       }
     }
   }
