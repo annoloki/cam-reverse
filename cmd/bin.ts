@@ -24,6 +24,8 @@ yargs(hideBin(process.argv))
         .option("port", { describe: "HTTP Port to listen on" })
         .string(["log_level", "discovery_ip", "config_file"])
         .number(["port"])
+        .option("exif", { describe: "Default rotate/mirror method (1=exif, 0=css)" })
+        .option("packet", { describe: "Default video packet mode (0=drop frame, 1=fix packet loss, 2=wait for packet" })
         .strict();
     },
     (argv) => {
@@ -42,6 +44,9 @@ yargs(hideBin(process.argv))
       if (argv.discovery_ip !== undefined) {
         config.discovery_ips = [argv.discovery_ip];
       }
+      if(!config.cameras.default) config.cameras.default={};
+      if (argv.exif !== undefined) config.cameras.default.exif=argv.exif;
+      if (argv.packet !== undefined) config.cameras.default.fix_packet_loss=argv.packet;
 
       buildLogger(config.logging.level, config.logging.use_color);
       if (majorVersion < 16) {
