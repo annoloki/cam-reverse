@@ -69,6 +69,7 @@ export const makeSession = (
   onLogin: (s: Session) => void,
   timeoutMs: number,
 ): Session => {
+  let counter = {recvBytes:0, recvData:0, recvPkts:0, sentBytes:0, sentPkts:0 };
   const sock = createSocket("udp4");
 
   sock.on("error", (err) => {
@@ -76,7 +77,11 @@ export const makeSession = (
     sock.close();
   });
 
-  sock.on("message", (msg, rinfo) => handleIncoming(session, handlers, msg, rinfo));
+  sock.on("message", (msg, rinfo) => {
+    counter.recvPkts++;
+    counter.recvBytes+=msg.byteLength;
+    handleIncoming(session, handlers, msg, rinfo)
+  });
 
   sock.on("listening", () => {
     const buf = makeP2pRdy(dev);
@@ -139,6 +144,8 @@ export const makeSession = (
       }
       logger.log("trace", `>> ${cmd}`);
       sock.send(new Uint8Array(msg.buffer), ra.port, session.dst_ip);
+      counter.sentPkts++;
+      counter.sentBytes+=msg.byteLength;
     },
     ackDrw: (id: number) => {
       let unackedDrw=session.unackedDrw;
@@ -146,7 +153,6 @@ export const makeSession = (
     },
     dst_ip: ra.address,
     curImage: [],
-    startFrame:0,
     rcvSeqId: 0,
     frame_is_bad: false,
     frame_was_fixed: false,
@@ -200,7 +206,8 @@ export const makeSession = (
   });
 
   // Record selected packets for web viewing
-  session.packets={};
+  session.retries=[];
+  session.packets={stats: {retries: session.retries, counter:session.counter=counter}};
   session._lastnote='';
   session.recPacket=(buf: DataView) => {
     if(buf._note) {
