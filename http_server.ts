@@ -73,9 +73,14 @@ export const serveHttp = (port: number) => {
       return;
     }
 
-    // let devId, cmd, n1, n2, n3;
     let [x,devId, cmd, n1, n2, n3]=urlbits;
-    let s= sessions[devId] ? sessions[devId] : undefined;
+    let s,conf,resp;
+    if(devId) {
+      s= sessions[devId] ? sessions[devId] : undefined;
+      conf=config.cameras[devId] ? config.cameras[devId] : {};
+      resp=responses[devId];
+    }
+
     if(s) {
       if(cmd=='audio') {
         if (s === undefined) {
@@ -165,17 +170,26 @@ export const serveHttp = (port: number) => {
         return;
       }
       else if (cmd=="camera") {
-        logger.info(`Video stream requested for camera ${devId}`);
+        logger.info(`Video stream requested for camera ${devId} (exif:${conf.exif}, packetmode=${conf.fix_packet_loss})`);
         if (!s.connected) {
           res.writeHead(400);
           res.end(`Camera ${devId} offline`);
           return;
         }
         res.setHeader("Content-Type", `multipart/x-mixed-replace; boundary="${BOUNDARY}"`);
-        res.write(header);
-        responses[devId].push(res);
+        if(conf.fix_packet_loss != 2) res.write(header);
+        res.startframe=0;
+        resp.push(res);
+        let tlimit;
+        if(n1>0) {
+          tlimit = setInterval( ()=>{
+            responses[devId] = responses[devId].filter((r) => r !== res);
+            res.end();
+          } ,n1*1000);
+        }
         res.on("close", () => {
-          responses[devId] = responses[devId].filter((r) => r !== res);
+          if(tlimit) clearInterval(tlimit);
+          resp = resp.filter((r) => r !== res);
           logger.info(`Video stream closed for camera ${devId}`);
         });
         return;
@@ -206,29 +220,39 @@ export const serveHttp = (port: number) => {
     }
 
     logger.info(`Discovered camera ${dev.devId} at ${rinfo.address}`);
-    responses[dev.devId] = [];
+    if(!responses[dev.devId]) responses[dev.devId] = [];
     audioResponses[dev.devId] = [];
     const s = makeSession(Handlers, dev, rinfo, startSession, 5000);
     sessions[dev.devId] = s;
-    let conf = config.cameras[dev.devId] = { exif: 0, rotate: 2, mirror: 0, fix_packet_loss:true, audio: 0, ...(config.cameras[dev.devId] || {}) };
-
-    const header = Buffer.from(`--${BOUNDARY}\r\nContent-Type: image/jpeg\r\n\r\n`);
+    let conf = config.cameras[dev.devId] = { exif: 1, rotate: 2, mirror: 0, fix_packet_loss:1, audio: 0, ...(config.cameras.default || {}) , ...(config.cameras[dev.devId] || {}) };
 
     s.eventEmitter.on("disconnect", () => {
       logger.info(`Camera ${dev.devId} disconnected`);
       delete sessions[dev.devId];
     });
+
+    function exify(buf) {
+      let orientation = conf.rotate;
+      orientation = conf.mirror ? oMapMirror[orientation] : oMap[orientation];
+      const exifSegment = orientations[orientation];
+      return addExifToJpeg(buf, exifSegment);
+    }
+    // For fix_packet_loss == 2, send segment immediately
+    s.sendSeg=function(buf, startframe=0) {
+      if(startframe && conf.exif) buf=exify(buf);
+      responses[dev.devId].forEach((res) => {
+        if(startframe) {
+          res.write(header);
+          res.started=1;
+        }
+        if(res.started) res.write(buf);
+      });
+    };
+    // For fix_packet_loss < 2, send buffered frame
     s.eventEmitter.on("frame", () => {
       let assembled;
-      if(conf.exif) {
-        // Add an EXIF header to indicate if the image should be rotated or mirrored
-        let orientation = conf.rotate;
-        orientation = conf.mirror ? oMapMirror[orientation] : oMap[orientation];
-        const exifSegment = orientations[orientation];
-        const jpegHeader = addExifToJpeg(s.curImage[0], exifSegment);
-        assembled = Buffer.concat([jpegHeader, ...s.curImage.slice(1)]);
-      }
-      else assembled=Buffer.concat(s.curImage);
+      if(conf.exif) s.curImage[0]=exify(s.curImage[0]);
+      assembled=Buffer.concat(s.curImage);
       responses[dev.devId].forEach((res) => {
         res.cork();
         res.write(assembled);

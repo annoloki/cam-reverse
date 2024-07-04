@@ -200,15 +200,62 @@ const deal_with_data = (session: Session, dv: DataView) => {
   const pkt_id = dv.getUint16(6);
   const STREAM_TYPE_AUDIO = 0x06;
   const STREAM_TYPE_JPEG = 0x03;
+  const fix_packet_loss = config.cameras[session.devName].fix_packet_loss;
 
-  const startNewFrame = (buf: ArrayBuffer) => {
-    if (session.curImage.length > 0 && !session.frame_is_bad ) session.eventEmitter.emit("frame");
-    session.startFrame=pkt_id
-    session.frame_was_fixed = false;
-    session.frame_is_bad = false;
-    session.curImage = [Buffer.from(buf)];
-    session.rcvSeqId = pkt_id;
-  };
+  let startNewFrame, addToFrame;
+  if(fix_packet_loss < 2) {
+    startNewFrame = (buf: ArrayBuffer) => {
+      session.counter.recvData+=buf.byteLength;
+      if (session.curImage.length > 0 && !session.frame_is_bad) session.eventEmitter.emit("frame");
+      session.frame_was_fixed = false;
+      session.frame_is_bad = false;
+      session.curImage = [Buffer.from(buf)];
+      session.rcvSeqId = pkt_id;
+    };
+  }
+  else if(fix_packet_loss == 2) {
+    let retries=session.retries, reneeds=session.reneeds;
+    startNewFrame = (buf: ArrayBuffer|Buffer|string, retry=0) => {
+      if(buf instanceof ArrayBuffer) buf=Buffer.from(buf);
+      let lid=session.rcvSeqId;
+      let behind=pkt_id - lid;
+      if(retry==0) session.counter.recvData+=buf.byteLength;
+      if(pkt_id<lid) return;
+      if(!retries[retry]) retries[retry]=1
+      else retries[retry]++;
+      if(retry>0) retries[retry-1]--;
+
+      if(lid==0 || pkt_id == lid+1 || pkt_id > lid+64) {
+        if(pkt_id > lid+64) logger.warning("Skipping packets (behind in sequence ${behind})");
+        session.sendSeg(buf,1);
+        session.rcvSeqId=pkt_id;
+        return;
+      }
+      if(!reneeds[behind]) reneeds[behind]=1
+      else reneeds[behind]++;
+      setTimeout(()=>{ startNewFrame(buf, retry+1); }, 10*(retry+1));
+    };
+    addToFrame = (buf: ArrayBuffer|Buffer|string, retry=0) => {
+      if(buf instanceof ArrayBuffer) buf=Buffer.from(buf);
+      if(retry==0) session.counter.recvData+=buf.byteLength;
+      let lid=session.rcvSeqId;
+      if(pkt_id<lid) return;
+      if(!retries[retry]) retries[retry]=1
+      else retries[retry]++;
+      if(retry>0) retries[retry-1]--;
+      if(pkt_id == lid+1) {
+        if(retry>1) logger.info("Sending pkt ${pkt_id} on retry ${retry}");
+        session.sendSeg(buf,0);
+        session.rcvSeqId=pkt_id;
+        return;
+      }
+      let behind=pkt_id - lid;
+      if(!reneeds[behind]) reneeds[behind]=1
+      else reneeds[behind]++;
+
+      setTimeout(()=>{ addToFrame(buf, retry+1); }, 10*(retry+1));
+    };
+  }
 
   let is_framed = m_hdr.startsWith(FRAME_HEADER);
   let is_new_image = m_hdr.startsWith(JPEG_HEADER);
@@ -247,6 +294,7 @@ const deal_with_data = (session: Session, dv: DataView) => {
       startNewFrame(data.buffer);
     }
     else {
+      if(addToFrame) return addToFrame(data.buffer);
       if (pkt_id <= session.rcvSeqId) {
         // retransmit
         return true;
@@ -263,7 +311,7 @@ const deal_with_data = (session: Session, dv: DataView) => {
         }
         // this should always be enabled but currently it seems to cause more
         // visual distortion than just missing some frames
-        if (!config.cameras[session.devName].fix_packet_loss) {
+        if (!fix_packet_loss) {
           return true;
         }
 
@@ -292,6 +340,7 @@ const deal_with_data = (session: Session, dv: DataView) => {
       session.rcvSeqId = pkt_id;
       if (session.curImage != null) {
         session.curImage.push(b);
+        if(retry==0) session.counter.recvData+=b.byteLength;
       }
     }
   }

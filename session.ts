@@ -206,8 +206,11 @@ export const makeSession = (
   });
 
   // Record selected packets for web viewing
-  session.retries=[];
-  session.packets={stats: {retries: session.retries, counter:session.counter=counter}};
+  session.packets={stats: {
+    retries: session.retries=[],
+    reneeds:session.reneeds={},
+    counter:session.counter=counter
+  }};
   session._lastnote='';
   session.recPacket=(buf: DataView) => {
     if(buf._note) {
