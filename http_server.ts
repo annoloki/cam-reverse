@@ -238,14 +238,16 @@ export const serveHttp = (port: number) => {
       return addExifToJpeg(buf, exifSegment);
     }
     // For fix_packet_loss == 2, send segment immediately
-    s.sendSeg=function(buf, startframe=0) {
+    s.sendSeg=function(buf, startframe=0, cork=0) {
       if(startframe && conf.exif) buf=exify(buf);
       responses[dev.devId].forEach((res) => {
+        if(cork) res.socket.cork();
         if(startframe) {
           res.write(header);
           res.started=1;
         }
         if(res.started) res.write(buf);
+        if(!cork) res.socket.uncork();
       });
     };
     // For fix_packet_loss < 2, send buffered frame

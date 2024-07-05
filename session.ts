@@ -69,7 +69,7 @@ export const makeSession = (
   onLogin: (s: Session) => void,
   timeoutMs: number,
 ): Session => {
-  let counter = {recvBytes:0, recvData:0, recvPkts:0, sentBytes:0, sentPkts:0 };
+  let counter = {recvBytes:0, recvData:0, recvPkts:0, sentBytes:0, sentPkts:0, lostPkts:0, dropPkts:0,dropBytes:0 };
   const sock = createSocket("udp4");
 
   sock.on("error", (err) => {
@@ -205,10 +205,42 @@ export const makeSession = (
     onLogin(session);
   });
 
+  var segs={}, _nextsend=0, _hipkt=0;
+  var lostframe={}, waitloss=64, waiting=0;
+  session.addFrame=(pkt_id,buf) => {
+    counter.recvData+=buf.byteLength;
+    if(pkt_id>_hipkt) _hipkt=pkt_id;
+    if(pkt_id<_nextsend) return;
+    if(!_nextsend) _nextsend=pkt_id;
+    if(pkt_id==_nextsend) {
+      _nextsend++
+      session.sendSeg(buf,buf.startframe,segs[_nextsend]?1:0);
+      if(segs[_nextsend]) logger.debug(`Recovering out-of-order frame ${_nextsend}`);
+    }else{
+      segs[pkt_id]=buf;
+      if(_hipkt > (_nextsend+waitloss)) {
+        while(!segs[_nextsend]?.startframe && _nextsend<_hipkt) {
+          if(segs[_nextsend]) {
+            logger.debug(`deleteframe->:${_nextsend}`);
+            counter.dropPkts++;
+            counter.dropBytes+=segs[_nextsend].byteLength;
+            delete segs[_nextsend];
+          }else{
+            logger.debug(`lostframe->ns:${_nextsend}`);
+            counter.lostPkts++;
+          }
+          _nextsend++;
+        }
+      }
+    }
+    while(segs[_nextsend]) {
+      session.sendSeg(segs[_nextsend],segs[_nextsend].startframe,segs[_nextsend+1]?1:0);
+      delete segs[_nextsend];
+      _nextsend++;
+    }
+  };
   // Record selected packets for web viewing
   session.packets={stats: {
-    retries: session.retries=[],
-    reneeds:session.reneeds={},
     counter:session.counter=counter
   }};
   session._lastnote='';

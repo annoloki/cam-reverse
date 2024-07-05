@@ -218,45 +218,15 @@ const deal_with_data = (session: Session, dv: DataView) => {
     };
   }
   else if(fix_packet_loss == 2) {
-    let retries=session.retries, reneeds=session.reneeds;
-    startNewFrame = (buf: ArrayBuffer|Buffer|string, retry=0) => {
+    startNewFrame = (buf: ArrayBuffer|Buffer|string) => {
       if(buf instanceof ArrayBuffer) buf=Buffer.from(buf);
-      let lid=session.rcvSeqId;
-      let behind=pkt_id - lid;
-      if(retry==0) session.counter.recvData+=buf.byteLength;
-      if(pkt_id<=lid) return;
-      if(!retries[retry]) retries[retry]=1
-      else retries[retry]++;
-      if(retry>0) retries[retry-1]--;
-
-      if(lid==0 || pkt_id == lid+1 || pkt_id > lid+32) {
-        if(pkt_id > lid+32) logger.warning(`Skipping packets (behind in sequence ${behind})`);
-        session.sendSeg(buf,1);
-        session.rcvSeqId=pkt_id;
-        return;
-      }
-      if(!reneeds[behind]) reneeds[behind]=1
-      else reneeds[behind]++;
-      setTimeout(()=>{ startNewFrame(buf, retry+1); }, (behind*2) + 5*retry + 10);
+      buf.startframe=1;
+      session.addFrame(pkt_id,buf,1);
     };
-    addToFrame = (buf: ArrayBuffer|Buffer|string, retry=0) => {
+    addToFrame = (buf: ArrayBuffer|Buffer|string) => {
       if(buf instanceof ArrayBuffer) buf=Buffer.from(buf);
-      if(retry==0) session.counter.recvData+=buf.byteLength;
-      let lid=session.rcvSeqId;
-      if(pkt_id<=lid) return;
-      if(!retries[retry]) retries[retry]=1
-      else retries[retry]++;
-      if(retry>0) retries[retry-1]--;
-      if(pkt_id == lid+1) {
-        session.sendSeg(buf,0);
-        session.rcvSeqId=pkt_id;
-        return;
-      }
-      let behind=pkt_id - lid;
-      if(!reneeds[behind]) reneeds[behind]=1
-      else reneeds[behind]++;
-
-      setTimeout(()=>{ addToFrame(buf, retry+1); }, (behind*2) + 5*retry + 10);
+      buf.startframe=0;
+      session.addFrame(pkt_id,buf,0);
     };
   }
 
@@ -297,11 +267,11 @@ const deal_with_data = (session: Session, dv: DataView) => {
       startNewFrame(data.buffer);
     }
     else {
-      if(addToFrame) return addToFrame(data.buffer);
       if (pkt_id <= session.rcvSeqId) {
         // retransmit
         return true;
       }
+      if(addToFrame) return addToFrame(data.buffer);
 
       let b = Buffer.from(data.buffer);
 
