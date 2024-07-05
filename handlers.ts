@@ -189,8 +189,12 @@ const deal_with_data = (session: Session, dv: DataView) => {
 
   // 12 equals start of header (0x8) + header length (0x4)
   if (pkt_len < 8) {
+    let alen=dv.byteLength;
     logger.log("trace", "Got a short Drw packet, ignoring");
-    logger.debug("Got a short Drw packet, ignoring");
+    logger.debug(`Got a short Drw packet, ignoring (pkt_len:${pkt_len}, actual len:${alen})`);
+    dv._recnote='short packet';
+    dv._c1n='shortDrw';
+    session.recPacket(dv);
     return true;
   }
 

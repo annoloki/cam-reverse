@@ -223,7 +223,9 @@ export const makeSession = (
     let len=buf.len();
     let s=buf.getUint8(5);
     let pkt={ buflen:len, cmd1: cmd1h, cmd1name:c1n, stream:s  };
+    if(buf._c1n) c1n=buf._c1n;
     if(buf._recpkt) pkt=buf._recpkt; else buf._recpkt=pkt;
+    if(buf._recnode) pkt.recnote=buf._recnote;
     let ad2=1;
     if(len>12 && (cmd1!=0xf1d0 || s!=1)) {
       let cmd2=Number(buf.getUint16(10));
