@@ -69,7 +69,7 @@ export const makeSession = (
   onLogin: (s: Session) => void,
   timeoutMs: number,
 ): Session => {
-  let counter = {recvBytes:0, recvData:0, recvPkts:0, sentBytes:0, sentPkts:0, lostPkts:0, dropPkts:0,dropBytes:0 };
+  let counter = {recvBytes:0, recvData:0, oldPkts:0, recvPkts:0, sentBytes:0, sentPkts:0, lostPkts:0, dropPkts:0,dropBytes:0 };
   const sock = createSocket("udp4");
 
   sock.on("error", (err) => {
@@ -206,11 +206,17 @@ export const makeSession = (
   });
 
   var segs={}, _nextsend=0, _hipkt=0;
-  var lostframe={}, waitloss=64, waiting=0;
+  var state, waitloss=64;
   session.addFrame=(pkt_id,buf) => {
-    counter.recvData+=buf.byteLength;
+    state.lastDataSeq=pkt_id;
+    if(pkt_id<10 && _hipkt>65530) { // Packet sequence 16bit limit reached
+      logger.debug(`Packet seq 16bit limit wraparound ${_hipkt}->${pkt_id}`);
+      _hipkt=_nextsend=0;
+      segs={};
+    }
     if(pkt_id>_hipkt) _hipkt=pkt_id;
-    if(pkt_id<_nextsend) return;
+    if(pkt_id<_nextsend) return counter.oldPkts++;
+    counter.recvData+=buf.byteLength;
     if(!_nextsend) _nextsend=pkt_id;
     if(pkt_id==_nextsend) {
       _nextsend++
@@ -238,10 +244,15 @@ export const makeSession = (
       delete segs[_nextsend];
       _nextsend++;
     }
+    if(_nextsend>65535) {
+      logger.debug(`Packet seq 16bit limit wraparound ${_nextsend}->${pkt_id}`);
+      _nextsend=_hipkt=0;
+    }
   };
   // Record selected packets for web viewing
   session.packets={stats: {
-    counter:session.counter=counter
+    counter:session.counter=counter,
+    state:state={}
   }};
   session._lastnote='';
   session.recPacket=(buf: DataView) => {
@@ -254,7 +265,7 @@ export const makeSession = (
     let buflen=buf.byteLength;
     let len=buf.len();
     let s=buf.getUint8(5);
-    let pkt={ buflen:len, cmd1: cmd1h, cmd1name:c1n, stream:s  };
+    let pkt={ buflen:len, cmd1: cmd1h, cmd1name:c1n, stream:s, seq:buf.seq()  };
     if(buf._c1n) c1n=buf._c1n;
     if(buf._recpkt) pkt=buf._recpkt; else buf._recpkt=pkt;
     if(buf._recnode) pkt.recnote=buf._recnote;
@@ -287,6 +298,9 @@ export const makeSession = (
      return pkt;
    }
   session.getPackets=() => {
+    state.nextsend=_nextsend;
+    state._hipkt=_hipkt;
+    state.buffered=Object.keys(segs).length;
     var str;
     const page = fs.readFileSync("getpackets.js", { encoding: "utf-8" });
     eval(page);
