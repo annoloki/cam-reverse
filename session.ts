@@ -49,8 +49,7 @@ type msgCb = (
 ) => void;
 
 const handleIncoming: msgCb = (session, handlers, msg, rinfo) => {
-  const ab = new Uint8Array(msg).buffer;
-  const dv = new DataView(ab);
+  const dv = new DataView(msg.buffer);
   const raw = dv.getUint16(0);
   session.recPacket(dv);
   const cmd = CommandsByValue[raw];
@@ -143,7 +142,7 @@ export const makeSession = (
         unackedDrw[packet_id] = { sent_ts: Date.now(), data: msg };
       }
       logger.log("trace", `>> ${cmd}`);
-      sock.send(new Uint8Array(msg.buffer), ra.port, session.dst_ip);
+      sock.send(msg, ra.port, session.dst_ip);
       counter.sentPkts++;
       counter.sentBytes+=msg.byteLength;
     },
