@@ -170,17 +170,13 @@ export const serveHttp = (port: number) => {
         return;
       }
       else if (cmd=="camera") {
+        var tlimit;
         logger.info(`Video stream requested for camera ${devId} (exif:${conf.exif}, packetmode=${conf.fix_packet_loss})`);
         if (!s.connected) {
           res.writeHead(400);
           res.end(`Camera ${devId} offline`);
           return;
         }
-        res.setHeader("Content-Type", `multipart/x-mixed-replace; boundary="${BOUNDARY}"`);
-        if(conf.fix_packet_loss != 2) res.write(header);
-        res.startframe=0;
-        resp.push(res);
-        let tlimit;
         if(n1>0) {
           tlimit = setInterval( ()=>{
             responses[devId] = responses[devId].filter((r) => r !== res);
@@ -189,9 +185,27 @@ export const serveHttp = (port: number) => {
         }
         res.on("close", () => {
           if(tlimit) clearInterval(tlimit);
-          resp = resp.filter((r) => r !== res);
+          responses[devId] = responses[devId].filter((r) => r !== res);
+          if(s.remConnection) s.remConnection();
           logger.info(`Video stream closed for camera ${devId}`);
         });
+        res.setHeader("Content-Type", `multipart/x-mixed-replace; boundary="${BOUNDARY}"`);
+        if(conf.fix_packet_loss != 2) res.write(header);
+        res.startframe=0;
+        resp.push(res);
+        return;
+      }
+      else if(cmd=="disconnect") {
+        if(s.eventEmitter) s.eventEmitter.emit("disconnect");
+        else s.close();
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      else if(cmd=="zero") {
+        s.zeroCounters();
+        res.writeHead(204);
+        res.end();
         return;
       }
       else if(cmd.match(/^[a-z0-9_]+$/) && fs.existsSync(cmd+'.html')) {
